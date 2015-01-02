@@ -124,7 +124,7 @@ mytaglist = {}
 
 local diskusage_topright = giblets.diskusage(
   beautiful.widget_disk,
-  {"/home", "/var"}
+  {"/home", "/var", "/videos", "/games"}
 )
 local diskusage_topleft = giblets.diskusage(
   beautiful.widget_disk,
