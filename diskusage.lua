@@ -46,6 +46,12 @@ DiskUsage.__index = DiskUsage
 --                              * `right`
 --                            Theme: `theme.giblets.diskusage.window_margins`
 --                            (default: `10`)
+--              * `window_border_width` - Sets the width of the border surrounding the DiskUsage window.
+--                                        Theme: `theme.giblets.diskusage.window_border_width`
+--                                        (default: `1`)
+--              * `window_border_color` - Sets the color of the border surrounding the DiskUsage window.
+--                                        Theme: `theme.giblets.diskusage.window_border_color`
+--                                        (default: `"#000000"`)
 --              * `header_margins` - Margins surrounding the headers row. Can be a single number representing
 --                                   all margins or a table specifying each margin. If a table of individual
 --                                   margins valid keys are:
@@ -115,6 +121,8 @@ function DiskUsage.new(icon, mounts, opts)
       -- styling options
       window_width = opts.window_width or du_theme.window_width or 400,
       window_margins = opts.window_margins or du_theme.window_margins or 10,
+      window_border_width = opts.window_border_width or du_theme.window_border_width or 1,
+      window_border_color = opts.window_border_color or du_theme.window_border_color or "#000000",
       header_margins = opts.header_margins or du_theme.header_margins or {bottom = 5},
       progressbar_height = opts.progressbar_height or du_theme.progressbar_height or 12,
       progressbar_margins = opts.progressbar_margins or du_theme.progressbar_margins or {top = 3},
@@ -252,6 +260,8 @@ function DiskUsage.new(icon, mounts, opts)
       ontop = true, 
       width = self.options.window_width, 
       height = height,
+      border_width = self.options.window_border_width,
+      border_color = self.options.window_border_color,
     })
   end
 
@@ -382,8 +392,9 @@ function DiskUsage:toggle()
   else
     -- we're at the bottom of the screen, ensure we don't bleed over below the workarea
     local window_y = workarea.height
-    if window_y + self._window.height > workarea.height then
-      window_y = workarea.height - self._window.height + workarea.y
+    local border = self.options.window_border_width * 2
+    if window_y + self._window.height + border > workarea.height then
+      window_y = window_y - self._window.height + workarea.y - border
     end
     self._window.y = window_y
   end
@@ -395,8 +406,10 @@ function DiskUsage:toggle()
   else
     -- right side, need to adjust x pos so we don't bleed over
     local window_x = mouse_coords.x
-    if window_x + self._window.width > workarea.width then
-      window_x = window_x - (window_x + self._window.width - workarea.width)
+    local border = self.options.window_border_width * 2
+    if window_x + self._window.width + border > workarea.width then
+      local diff = window_x + self._window.width + border - workarea.width
+      window_x = window_x - diff
     end
     self._window.x = window_x
   end
