@@ -381,38 +381,33 @@ function DiskUsage:toggle()
 
   -- need to show window after updating all the mount stats
   self:refresh()
-  -- calculate the coords for our wibox
-  local workarea = screen[mouse.screen].workarea
+  -- calculate the coords that our window (wibox) should be displayed at
   local mouse_coords = mouse.coords()
+  local workarea = screen[mouse.screen].workarea
+  local w_width_total = self._window.width + self.options.window_border_width * 2
+  local w_height_total = self._window.height + self.options.window_border_width * 2
+  -- one monitor - { height = 876, width = 1440, x = 0, y = 12 }
+  -- two monitors - { height = 1038, width = 1680, x = 1680, y = 12 }
 
-  -- find out if our icon was clicked towards the top of the screen or the bottom
-  if mouse_coords.y < workarea.height / 2 then
-    -- we're at the top of the screen so we can just set the y coord to the workarea's y
-    self._window.y = workarea.y
-  else
-    -- we're at the bottom of the screen, ensure we don't bleed over below the workarea
-    local window_y = workarea.height
-    local border = self.options.window_border_width * 2
-    if window_y + self._window.height + border > workarea.height then
-      window_y = window_y - self._window.height + workarea.y - border
-    end
-    self._window.y = window_y
+  -- set the initial coords to that of the mouse cursor's
+  local x, y = mouse_coords.x, mouse_coords.y
+
+  -- now perform some checks to ensure the window isn't bleeding over the screen edge
+  -- start with x
+  if x < workarea.x then x = workarea.x end
+  if x + w_width_total > workarea.x + workarea.width then 
+    x = workarea.x + workarea.width - w_width_total
   end
 
-  -- now find out if we're on the left or right side of the screen
-  if mouse_coords.x < workarea.width / 2 then
-    -- left side, we can just set the x coord to the workarea's x
-    self._window.x = workarea.x
-  else
-    -- right side, need to adjust x pos so we don't bleed over
-    local window_x = mouse_coords.x
-    local border = self.options.window_border_width * 2
-    if window_x + self._window.width + border > workarea.width then
-      local diff = window_x + self._window.width + border - workarea.width
-      window_x = window_x - diff
-    end
-    self._window.x = window_x
+  -- now handle the y coord
+  if y < workarea.y then y = workarea.y end
+  if y + w_height_total > workarea.y + workarea.height then
+    y = workarea.y + workarea.height - w_height_total
   end
+
+  -- and finally set the widget window coords and make it visible
+  self._window.x = x
+  self._window.y = y
   self._window.visible = not self._window.visible
 end
 

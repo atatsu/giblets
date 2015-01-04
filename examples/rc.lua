@@ -124,21 +124,25 @@ mytaglist = {}
 
 local diskusage_topright = giblets.diskusage(
   beautiful.widget_disk,
-  {"/home", "/var", "/videos", "/games"}
+  {"/home", "/var", "/videos", "/games"},
+  {window_border_width = 2}
 )
 local diskusage_topleft = giblets.diskusage(
   beautiful.widget_disk,
-  {{mount = "/home", label = "<b>Home</b>"}, {mount = "/var", label = "<b>Var</b>"}}
+  {{mount = "/home", label = "<b>Home</b>"}, {mount = "/var", label = "<b>Var</b>"}},
+  {window_border_width = 2}
 )
 
 local diskusage_bottomleft = giblets.diskusage(
   beautiful.widget_disk,
-  {{mount = "/home", label = "<b>Home</b>"}, {mount = "/var", label = "<b>Var</b>"}}
+  {{mount = "/home", label = "<b>Home</b>"}, {mount = "/var", label = "<b>Var</b>"}},
+  {window_border_width = 2}
 )
 
 local diskusage_bottomright = giblets.diskusage(
   beautiful.widget_disk,
-  {{mount = "/home", label = "<b>Home</b>"}, {mount = "/var", label = "<b>Var</b>"}}
+  {{mount = "/home", label = "<b>Home</b>"}, {mount = "/var", label = "<b>Var</b>"}},
+  {window_border_width = 2}
 )
 
 mytaglist.buttons = awful.util.table.join(
