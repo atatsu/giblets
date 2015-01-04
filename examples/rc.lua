@@ -122,24 +122,24 @@ mypromptbox = {}
 mylayoutbox = {}
 mytaglist = {}
 
-local diskusage_topright = giblets.diskusage(
+local diskusage_topright = giblets.widgets.diskusage(
   beautiful.widget_disk,
   {"/home", "/var", "/videos", "/games"},
   {window_border_width = 2}
 )
-local diskusage_topleft = giblets.diskusage(
+local diskusage_topleft = giblets.widgets.diskusage(
   beautiful.widget_disk,
   {{mount = "/home", label = "<b>Home</b>"}, {mount = "/var", label = "<b>Var</b>"}},
   {window_border_width = 2}
 )
 
-local diskusage_bottomleft = giblets.diskusage(
+local diskusage_bottomleft = giblets.widgets.diskusage(
   beautiful.widget_disk,
   {{mount = "/home", label = "<b>Home</b>"}, {mount = "/var", label = "<b>Var</b>"}},
   {window_border_width = 2}
 )
 
-local diskusage_bottomright = giblets.diskusage(
+local diskusage_bottomright = giblets.widgets.diskusage(
   beautiful.widget_disk,
   {{mount = "/home", label = "<b>Home</b>"}, {mount = "/var", label = "<b>Var</b>"}},
   {window_border_width = 2}

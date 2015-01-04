@@ -1,3 +1,6 @@
+local widgets = require("giblets.widgets")
+
 return {
-  diskusage = require("giblets.diskusage"),
+  widgets = widgets,
+  _VERSION = "0.1.0",
 }
