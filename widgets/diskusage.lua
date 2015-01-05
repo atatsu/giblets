@@ -1,95 +1,130 @@
+--- DiskUsage widget
+-- @module giblets.widgets.diskusage
+-- @author Nathan Lundquist (atatsu)
+-- @copyright 2015 Nathan Lundquist
+
 local wibox = require("wibox")
 local awful = require("awful")
 local beautiful = require("beautiful")
 
-local inspect = require("inspect")
+local capi = {
+  screen = screen,
+  mouse = mouse,
+}
 
 -- function aliases
 local pread = awful.util.pread
 
 -- command to get partition size, used, avail, and use%
---cmd_template = "df -h %s | tail -n 1 | awk '{print $2, $3, $4, $5}'"
 cmd_template = "df -h %s | tail -n %s | awk '{print $6, $2, $3, $4, $5}'"
 
 local DiskUsage = {}
 DiskUsage.__index = DiskUsage
 
+--- Default header labels
+-- @table default_header_labels
+local default_header_labels = {
+  mount_point = "<b>Mount point</b>", -- &lt;b&gt;Mount point&lt;/b&gt;
+  size = "<b>Size</b>", -- &lt;b&gt;Size&lt;/b&gt;
+  avail = "<b>Avail</b>", -- &lt;b&gt;Avail&lt;/b&gt;
+  used = "<b>Used</b>" -- &lt;b&gt;Used&lt;/b&gt;
+}
+
+--- DiskUsage options
+-- @bool[opt=true] enable_header Display column headers.
+-- @tparam table header_labels A table of header labels used for columns if they're 
+--   enabled. Pango markup is supported. See the @{default_header_labels} for structure
+--   and defaults.
+-- @int[opt=400] window_width `theme.giblets.diskusage.window_width`
+--
+--   Controls the width of the DiskUsage widget window.
+-- @tparam[opt=10] ?int|table window_margins `theme.giblets.diskusage.window_margins`
+--
+--   Margins for the DiskUsage widget outer window.
+--   Can be a single number representing all margins or a table specifying
+--   each margin. If a table of individual margins, valid keys are:
+--     * top
+--     * bottom
+--     * left
+--     * right
+--  For example: `{top = 10, right = 5, bottom = 10, left = 5}`
+--
+--  *Note*: If any keys are specified, those left unspecified are assumed
+--  to have a value of `0`.
+-- @int[opt=1] window_border_width `theme.giblets.diskusage.window_border_width`
+--
+--   Sets the width of the border surrounding the DiskUsage window.
+-- @string[opt="#000000"] window_border_color `theme.giblets.diskusage.window_border_color`
+--   Sets the color of the border surrounding the DiskUsage window.
+-- @tparam[opt={bottom = 5}] ?int|table header_margins `theme.giblets.diskusage.header_margins`
+--
+--   Margins surrounding the headers row. Can be a single number representing
+--   all margins or a table specifying each margin. If a table of individual
+--   margins, valid keys are:
+--     * top
+--     * bottom
+--     * left
+--     * right
+--   For example: `{top = 10, right = 5, bottom = 10, left = 5}`
+--
+--   *Note*: If any keys are specified, those left unspecified are assumed
+--   to have a value of `0`.
+-- @int[opt=12] progressbar_height `theme.giblets.diskusage.progressbar_height`
+--
+--   Controls the height of the progressbar that is used to represent the % used
+--   of the mount point.
+-- @tparam[opt={top = 3}] ?int|table progressbar_margins `theme.giblets.diskusage.progressbar_margins`
+--
+--   Sets the margins surrounding the progressbar. Can be a single number representing all
+--   margins or a table specifying each margin. If a table of individual margins, valid
+--   keys are:
+--     * top
+--     * bottom
+--     * left
+--     * right
+--   For example: `{top = 10, right = 5, bottom = 10, left = 5}`
+--
+--   *Note*: If any keys are specified, those left unspecified are assumed to have
+--   a value of `0`.
+-- @string[opt="#d509b5"] progressbar_color `theme.giblets.diskusage.progressbar_color`
+--
+--   Sets the color of the progressbar.
+-- @string[opt="#afd700"] progressbar_border_color `theme.giblets.diskusage.progressbar_border_color`
+--
+--   Sets the color of the progressbar border.
+-- @tparam[opt={bottom = 7}] ?int|table mp_container_margins `theme.giblets.diskusage.mp_container_margins`
+--
+--   Sets the margins surrounding each mount point container (the container encompasses all
+--   the sub-widgets specific to a mount point, so the mount label text, size text, used text,
+--   avail text, and progressbar). Can be a single number representing all margins or a table
+--   specifying each margin. If a table of individual margins, valid keys are:
+--     * top
+--     * bottom
+--     * left
+--     * right
+--   For example: `{top = 10, right = 5, bottom = 10, left = 5}`
+--
+--   *Note*: If any keys are specified, those left unspecified are assumed to have
+--   a value of `0`.
+-- @table opts
+  
+
 --- Create a DiskUsage widget.
--- @param icon Icon to use.
--- @param mounts An array of mount points to monitor or an array of mount point/label pairs.
---               If just an array of mount points the mount points themselves will be used
---               as the label. The order in which mount points are supplied is the order in
---               which they're displayed.
--- @param opts Options for controlling the look and feel of the DiskUsage widget. Configuration
---             as well as styling options can be supplied here. Any styling options specified
---             here override theme settings. The following options can be provided:
---              === Configuration options
---              * `enable_header` - Display column headers. (default: `true`)
---              * `header_labels` - A table of header labels used for columns. Pango
---                                  markup is supported.
---                                  (default: `{
---                                    mount_point = "<b>Mount point<b>", 
---                                    size = "<b>Size</b>",
---                                    avail = "<b>Avail</b>",
---                                    used = "<b>Used</b>"
---                                  }`)
---              === Styling options
---              * `window_width` - Controls the width of the DiskUsage widget window.
---                          Theme: `theme.giblets.diskusage.window_width`
---                          (default: `400`)
---              * `window_margins` - Margins for the DiskUsage widget outer window. Can be a single number representing
---                            all margins or a table specifying each margin. If a table of individual margins 
---                            valid keys are:
---                              * `top`
---                              * `bottom`
---                              * `left`
---                              * `right`
---                            Theme: `theme.giblets.diskusage.window_margins`
---                            (default: `10`)
---              * `window_border_width` - Sets the width of the border surrounding the DiskUsage window.
---                                        Theme: `theme.giblets.diskusage.window_border_width`
---                                        (default: `1`)
---              * `window_border_color` - Sets the color of the border surrounding the DiskUsage window.
---                                        Theme: `theme.giblets.diskusage.window_border_color`
---                                        (default: `"#000000"`)
---              * `header_margins` - Margins surrounding the headers row. Can be a single number representing
---                                   all margins or a table specifying each margin. If a table of individual
---                                   margins valid keys are:
---                                     * `top`
---                                     * `bottom`
---                                     * `left`
---                                     * `right`
---                                   Theme: `theme.giblets.diskusage.header_margins`
---                                   (default: `{bottom = 5}`)
---              * `progressbar_height` - Control the height of the progressbar that is used
---                                       to represent the % used of the mount point.
---                                       Theme: `theme.giblets.diskusage.progressbar_height`
---                                       (default: `12`)
---              * `progressbar_margins` - Sets the margins surrounding the progressbar. Can be a single number
---                                        representing all margins or a table specifying each margin. If a table
---                                        of individual margins valid keys are:
---                                          * `top`
---                                          * `bottom`
---                                          * `left`
---                                          * `right`
---                                        Theme: `theme.giblets.diskusage.progressbar_margins`
---                                        (default: `{top = 3}`)
---              * `mp_container_margins` - Sets the margins surrounding each mount point container (the container 
---                                         encompasses all the sub-widgets specific to a mount point, so the mount
---                                         label text, size text, used text, avail text, and progressbar). Can be
---                                         a single number representing all margins or a table specifying each margin.
---                                         If a table of individual margins valid keys are:
---                                           * `top`
---                                           * `bottom`
---                                           * `left`
---                                           * `right`
---                                         Theme: `theme.giblets.diskusage.mp_container_margins`
---                                         (default: `{bottom = 7}`)
--- @usage local du = diskusage(beautiful.du_icon, {"/home", "/var"})
--- @usage local du = diskusage(
---                     beautiful.du_icon, 
---                     {{mount = "/home", label = "Home"}, {mount = "/var", label = "Var"}}
---                   )
+-- @string icon Icon to use.
+-- @tparam table mounts An array of mount points to monitor or an array of mount point/label pairs.
+--   If just an array of mount points the mount points themselves will be used as the label. 
+--   The order in which mount points are supplied is the order in which they're displayed.
+-- @tparam[opt] table opts Options for controlling the look and feel of the DiskUsage widget. 
+--   Configuration as well as styling options can be supplied here. Any styling options specified
+--   here override theme settings. For a break down of all available options as well as their
+--   theme counterparts see @{opts}.
+-- @return A DiskUsage instance.
+-- @usage local du = giblets.widgets.diskusage(beautiful.du_icon, {"/home", "/var"})
+-- @usage local du = giblets.widgets.diskusage(
+--   beautiful.du_icon, 
+--   {{mount = "/home", label = "Home"}, {mount = "/var", label = "Var"}}
+-- )
+-- @see diskusage.lua
 function DiskUsage.new(icon, mounts, opts)
   local self = setmetatable({}, DiskUsage)
   self.mounts = mounts
@@ -113,10 +148,10 @@ function DiskUsage.new(icon, mounts, opts)
       -- configuration options
       enable_header = opts.enable_header or true,
       header_labels = {
-        mount_point = header_labels.mount_point or "<b>Mount point</b>",
-        size = header_labels.size or "<b>Size</b>",
-        avail = header_labels.avail or "<b>Avail</b>",
-        used = header_labels.used or "<b>Used</b>",
+        mount_point = header_labels.mount_point or default_header_labels.mount_point,
+        size = header_labels.size or default_header_labels.size,
+        avail = header_labels.avail or default_header_labels.avail,
+        used = header_labels.used or default_header_labels.used,
       },
       -- styling options
       window_width = opts.window_width or du_theme.window_width or 400,
@@ -126,7 +161,11 @@ function DiskUsage.new(icon, mounts, opts)
       header_margins = opts.header_margins or du_theme.header_margins or {bottom = 5},
       progressbar_height = opts.progressbar_height or du_theme.progressbar_height or 12,
       progressbar_margins = opts.progressbar_margins or du_theme.progressbar_margins or {top = 3},
-      mp_container_margins = opts.mp_container_margins or du_theme.mp_container_margins or {bottom = 7},
+      progressbar_color = opts.progressbar_color or du_theme.progressbar_color or "#d509b5",
+      progressbar_border_color = opts.progressbar_border_color or 
+        du_theme.progressbar_border_color or "#afd700",
+      mp_container_margins = opts.mp_container_margins or 
+        du_theme.mp_container_margins or {bottom = 7},
     }
   end
 
@@ -186,9 +225,8 @@ function DiskUsage.new(icon, mounts, opts)
     local w = {}
     -- create a progressbar for a visual representation of disk usage
     w.progressbar = awful.widget.progressbar({height = self.options.progressbar_height})
-    -- TODO: make these colors configurable
-    awful.widget.progressbar.set_border_color(w.progressbar, "#afd700")
-    awful.widget.progressbar.set_color(w.progressbar, "#d509b5")
+    awful.widget.progressbar.set_border_color(w.progressbar, self.options.progressbar_border_color)
+    awful.widget.progressbar.set_color(w.progressbar, self.options.progressbar_color)
     -- create a textbox to hold the mount's label
     w.label = wibox.widget.textbox()
     w.label:set_markup(label)
@@ -364,14 +402,23 @@ end
 
 --- Set the mouse and/or button bindings for the widget.
 -- If this is not explicitly called a default is used, left-clicking the
--- widget shows/hides the disk usage stats.
+-- widget shows/hides the disk usage stats. This is called by @{new} to set up 
+-- the default bindings. If you wish to override simply use it after you have
+-- a DiskUsage instance.
+-- @tparam table keys A table with one or several button objects (from `awful.button`).
+-- @usage local du = giblets.widgets.diskusage(beautiful.du_icon, {"/home"})
+-- du:buttons(
+--   awful.button({}, 1, function() self:toggle() end)
+-- )
 function DiskUsage:buttons(keys)
   self.widget:buttons(keys)
 end
 
 --- Shows the widget if it is hidden, or hides it if it is shown.
 -- In addition to hiding/showing the widget this will update the
--- current stats for each monitored mount point.
+-- current stats for each monitored mount point (by use of @{refresh}).
+-- With the default keybindings this is called when the widget icon is
+-- left-clicked.
 function DiskUsage:toggle()
   -- simply hide the window if it is currently visible
   if self._window.visible then
@@ -383,7 +430,7 @@ function DiskUsage:toggle()
   self:refresh()
   -- calculate the coords that our window (wibox) should be displayed at
   local mouse_coords = mouse.coords()
-  local workarea = screen[mouse.screen].workarea
+  local workarea = capi.screen[capi.mouse.screen].workarea
   local w_width_total = self._window.width + self.options.window_border_width * 2
   local w_height_total = self._window.height + self.options.window_border_width * 2
   -- one monitor - { height = 876, width = 1440, x = 0, y = 12 }
@@ -412,6 +459,8 @@ function DiskUsage:toggle()
 end
 
 --- Refreshes the stats of all mount points and updates their corresponding widgets.
+-- Refresh all the mount point stats and update their corresponding widgets. This is
+-- automatically called by @{toggle}.
 function DiskUsage:refresh()
   local output = pread(self._cmd)
   for i, v in ipairs(self._cmd_mounts) do
