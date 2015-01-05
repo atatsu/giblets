@@ -1,4 +1,8 @@
 giblets
 =======
 
-Widgets for awesome WM
+Widgets and utilities for the awesome window manager.
+
+Documentation
+=============
+http://atatsu.github.io/giblets/
