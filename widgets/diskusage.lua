@@ -118,7 +118,7 @@ local default_header_labels = {
 --   Configuration as well as styling options can be supplied here. Any styling options specified
 --   here override theme settings. For a break down of all available options as well as their
 --   theme counterparts see @{opts}.
--- @return A DiskUsage instance.
+-- @treturn DiskUsage A DiskUsage instance.
 -- @usage local du = giblets.widgets.diskusage(beautiful.du_icon, {"/home", "/var"})
 -- @usage local du = giblets.widgets.diskusage(
 --   beautiful.du_icon, 
@@ -142,7 +142,7 @@ function DiskUsage.new(icon, mounts, opts)
       font_size = 14
     end
 
-    local opts = opts or {}
+    opts = opts or {}
     local header_labels = opts.header_labels or {}
     self.options = {
       -- configuration options
