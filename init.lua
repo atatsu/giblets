@@ -6,6 +6,7 @@
 
 --- giblets sub-modules
 local M = {
+  utils = require("giblets.utils"),
   widgets = require("giblets.widgets"),
 }
 
