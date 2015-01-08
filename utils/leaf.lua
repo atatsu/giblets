@@ -122,6 +122,7 @@ function Leaf:toggle()
   if not self._client.hidden and self._last_tag ~= current_tag then
     awful.client.movetotag(current_tag, self._client)
     self._last_tag = current_tag
+    capi.client.focus = self._client
     return
   end
 
