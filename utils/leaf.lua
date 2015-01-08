@@ -9,11 +9,9 @@ local exec = awful.util.spawn
 
 local capi = {
   mouse = mouse,
-  client = client
+  client = client,
+  screen = screen,
 }
-
--- flag to prevent multiple signal manipulations
-local _pre_managed = false
 
 local Leaf = {}
 Leaf.__index = Leaf
@@ -21,9 +19,9 @@ Leaf.__index = Leaf
 --- Leaf options
 -- @string[opt="bottom"] position Position of the leaf. Can be one of "top", "bottom", 
 --   "left", or "right".
--- @number[opt=0.2] height Height of the Leaf application. Can be an absolute pixel 
+-- @number[opt=0.3] height Height of the Leaf application. Can be an absolute pixel 
 --   size or a percentage of the screen if between `0` and `1`.
--- @number[opt=0.2] width Width of the Leaf application. Can be an absolute pixel size 
+-- @number[opt=0.5] width Width of the Leaf application. Can be an absolute pixel size 
 --   or a percentage of the screen if between `0` and `1`.
 -- @bool[opt=false] sticky Whether the leaf should show up on all tags or not.
 -- @table opts
@@ -43,67 +41,92 @@ function Leaf.new(app, opts)
   local p = opts.position
   self.opts = {
     position = (p == "top" or p == "bottom" or p == "left" or p == "right") and p or "bottom",
-    height = opts.height or 0.2,
-    width = opts.width or 0.2,
+    height = opts.height or 0.3,
+    width = opts.width or 0.5,
     sticky = opts.sticky or false,
   }
-
-  self._app_launched = false
 
   return self
 end
 
-Leaf.pre_manage = function(c)
-  -- fire the `leafspawn` signal in case any instances are listening
-  capi.client.emit_signal("potential-leaf-spawn", c)
-end
+function Leaf:_spawn()
+  local pid
+  local catch_app_open
+  catch_app_open = function(c)
+    if c.pid ~= pid then
+      return
+    end
 
-function Leaf:_spawned(c)
-  self._client = c
-  -- is it possible to unmanage a specific client?
-  c:disconnect_signal("manage", awful.rules.apply)
-  -- is it possible to listen on "unmanage" for a specific client?
-  c:connect_signal("unmanage", function(c)
-    self._client = nil
-    self._app_launched = false
-  end)
+    -- gotchya
+    self._client = c
+    capi.client.disconnect_signal("manage", catch_app_open)
+    c.hidden = true
+    c.ontop = true
+    c.sticky = self.opts.sticky
+    c.skip_taskbar = true
+    awful.client.floating.set(c, true)
+    awful.titlebar.hide(c)
 
-  -- now set all appropriate client properties
-  awful.client.floating.set(c, true)
-  c.ontop = true
-  c.sticky = self.opts.sticky
-  c.skip_taskbar = true
-  c:raise()
-  c.hidden = true
+    -- now we need to listen for the app being closed
+    local catch_app_close
+    catch_app_close = function(c)
+      if c ~= self._client then
+        -- not our app
+        return
+      end
 
-  -- since the app just spawned call `toggle` again to actually display it
-  -- and set its dimensions
-  self:toggle()
+      -- here be our app
+      self._client = nil  -- now it can spawn again
+      self._last_tag = nil
+      capi.client.disconnect_signal("unmanage", catch_app_close)
+    end
+    capi.client.connect_signal("unmanage", catch_app_close)
+
+    -- now that we have that all taken care of we need to call `toggle`
+    -- again to get the app shown and positioned
+    self:toggle()
+  end
+
+  capi.client.connect_signal("manage", catch_app_open)
+  pid = exec(self.app)
 end
 
 function Leaf:toggle()
-  if not self._client and not self._app_launched then
-    -- listen for a `potential-leaf-spawn` signal
-    local check_for_app = function(c)
-      if c.pid ~= self._pid then return end
-      capi.client.disconnect_signal("potential-leaf-spawn", check_for_app)
-      self._spawned(c)
-    end
-    capi.client.connect_signal("potential-leaf-spawn", check_for_app)
-    self._pid = exec(app, false)
-    self._app_launched = true
+  if not self._client then
+    self:_spawn()
     return
   end
 
   -- our app hasn't finished launching yet
   if not self._client then return end
 
-  if not self._client.hidden then
+  local s = capi.mouse.screen
+  local current_tag = awful.tag.selected(s)
+  
+  -- first time the app has been displayed, set the tag
+  if not self._last_tag then self._last_tag = current_tag end
+
+  -- our current tag didn't change so the app needs to be hidden
+  if not self._client.hidden and self._last_tag == current_tag then
     self._client.hidden = true
+    local tags = self._client:tags()
+    for i, _ in ipairs(tags) do
+      tags[i] = nil
+    end
+    self._client:tags(tags)
     return
   end
 
-  local workarea = capi.screen[capi.mouse.screen].workarea
+  -- when the app is already being shown but a toggle happens from a different
+  -- tag simply move the app to that tag
+  if not self._client.hidden and self._last_tag ~= current_tag then
+    awful.client.movetotag(current_tag, self._client)
+    self._last_tag = current_tag
+    return
+  end
+
+  -- client is hidden, show it and set its dimensions and position
+  local workarea = capi.screen[s].workarea
   local x, y, width, height
 
   if self.opts.height <= 1 then height = workarea.height * self.opts.height
@@ -111,35 +134,21 @@ function Leaf:toggle()
   if self.opts.width <= 1 then width = workarea.width * self.opts.width
   else width = self.opts.width end
 
-  if self.opts.position == "bottom" then
-    x = workarea.x + workarea.width - width
-    y = workarea.y + workarea.height - height
-  elseif self.opts.position == "top" then
-    x = workarea.x + workarea.width - width
-    y = workarea.y
-  elseif self.opts.position == "left" then
-    error("not implemented")
-  elseif self.opts.position == "right" then
-    error("not implemented")
-  end
+  local pos = self.opts.position
+  if pos == "bottom" then y = workarea.y + workarea.height - height
+  elseif pos == "top" then y = workarea.y
+  else y = workarea.y + (workarea.height - height) / 2 end
 
+  if pos == "left" then x = workarea.x
+  elseif pos == "right" then x = workarea.x + workarea.width - width
+  else x = workarea.x + (workarea.width - width) / 2 end
 
+  self._last_tag = current_tag
   self._client:geometry({x = x, y = y, height = height, width = width})
+  awful.client.movetotag(current_tag, self._client)
   self._client.hidden = false
-  -- TODO: move to active tag
-end
-
-if not _pre_managed then
-  -- TODO: investigate "new" signal, maybe this isn't necessary
-  -- setup our own "manage" handler and set its order before that of the stock `awful.rules.apply` handler
-  -- register our own signal that will be fired from the pre-manage function, that way we can listen
-  -- if we're expecting a new leaf app to spawn
-  capi.client.add_signal("potential-leaf-spawn")
-  capi.client.disconnect_signal("manage", awful.rules.apply)
-  capi.client.connect_signal("manage", Leaf.pre_manage)
-  capi.client.connect_signal("manage", awful.rules.apply)
-
-  _pre_managed = true
+  self._client:raise()
+  capi.client.focus = self._client
 end
 
 return setmetatable(Leaf, {
