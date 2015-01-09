@@ -30,7 +30,7 @@ local default_header_labels = {
   used = "<b>Used</b>" -- &lt;b&gt;Used&lt;/b&gt;
 }
 
---- DiskUsage options
+--- DiskUsage options.
 -- @bool[opt=true] enable_header Display column headers.
 -- @tparam table header_labels A table of header labels used for columns if they're 
 --   enabled. Pango markup is supported. See the @{default_header_labels} for structure
@@ -110,6 +110,7 @@ local default_header_labels = {
   
 
 --- Create a DiskUsage widget.
+-- TODO: Write an actual description.
 -- @string icon Icon to use.
 -- @tparam table mounts An array of mount points to monitor or an array of mount point/label pairs.
 --   If just an array of mount points the mount points themselves will be used as the label. 
@@ -118,7 +119,7 @@ local default_header_labels = {
 --   Configuration as well as styling options can be supplied here. Any styling options specified
 --   here override theme settings. For a break down of all available options as well as their
 --   theme counterparts see @{opts}.
--- @treturn DiskUsage A DiskUsage instance.
+-- @treturn DiskUsage A new DiskUsage instance.
 -- @usage local du = giblets.widgets.diskusage(beautiful.du_icon, {"/home", "/var"})
 -- @usage local du = giblets.widgets.diskusage(
 --   beautiful.du_icon, 
@@ -406,12 +407,15 @@ end
 -- the default bindings. If you wish to override simply use it after you have
 -- a DiskUsage instance.
 -- @tparam table keys A table with one or several button objects (from `awful.button`).
+-- @return The DiskUsage instance.
 -- @usage local du = giblets.widgets.diskusage(beautiful.du_icon, {"/home"})
 -- du:buttons(
 --   awful.button({}, 1, function() self:toggle() end)
 -- )
+-- @see diskusage.lua
 function DiskUsage:buttons(keys)
   self.widget:buttons(keys)
+  return self
 end
 
 --- Shows the widget if it is hidden, or hides it if it is shown.
@@ -419,11 +423,12 @@ end
 -- current stats for each monitored mount point (by use of @{refresh}).
 -- With the default keybindings this is called when the widget icon is
 -- left-clicked.
+-- @return The DiskUsage instance.
 function DiskUsage:toggle()
   -- simply hide the window if it is currently visible
   if self._window.visible then
     self._window.visible = false
-    return
+    return self
   end
 
   -- need to show window after updating all the mount stats
@@ -456,11 +461,13 @@ function DiskUsage:toggle()
   self._window.x = x
   self._window.y = y
   self._window.visible = not self._window.visible
+  return self
 end
 
 --- Refreshes the stats of all mount points and updates their corresponding widgets.
 -- Refresh all the mount point stats and update their corresponding widgets. This is
 -- automatically called by @{toggle}.
+-- @return The DiskUsage instance.
 function DiskUsage:refresh()
   local output = pread(self._cmd)
   for i, v in ipairs(self._cmd_mounts) do
@@ -481,6 +488,7 @@ function DiskUsage:refresh()
     self._widgets[i].avail_space:set_text(avail)
     self._widgets[i].progressbar:set_value(use_percent / 100)
   end
+  return self
 end
 
 return setmetatable(DiskUsage, {
