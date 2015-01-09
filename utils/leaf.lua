@@ -27,12 +27,14 @@ Leaf.__index = Leaf
 -- @table opts
 
 --- Create a new Leaf.
+-- TODO: write an actual description
 -- @string app Application to execute.
 -- @tparam[opt] table opts Options for controlling the look and behavior of the Leaf. For a 
 --   break down of all available options and their defaults see @{opts}.
--- @treturn Leaf A Leaf instance.
+-- @treturn Leaf A new Leaf instance.
 -- @usage local termleaf = giblets.utils.leaf("urxvt")
 -- termleaf:toggle()
+-- @see leaf.lua
 function Leaf.new(app, opts)
   local self = setmetatable({}, Leaf)
   self.app = app
@@ -49,6 +51,7 @@ function Leaf.new(app, opts)
   return self
 end
 
+-- Used internally to launch the actual app.
 function Leaf:_spawn()
   local pid
   local catch_app_open
@@ -91,14 +94,20 @@ function Leaf:_spawn()
   pid = exec(self.app)
 end
 
+--- Toggle the leaf.
+-- Show the leaf on the active screen/tag. If it is already shown, hide it.
+-- If the leaf is already visible, and this is called from a tag the leaf is
+-- not currently on, will simply move the leaf to the new active tag.
+-- @return The leaf instance.
+-- @see leaf.lua
 function Leaf:toggle()
   if not self._client then
     self:_spawn()
-    return
+    return self
   end
 
   -- our app hasn't finished launching yet
-  if not self._client then return end
+  if not self._client then return self end
 
   local s = capi.mouse.screen
   local current_tag = awful.tag.selected(s)
@@ -114,7 +123,7 @@ function Leaf:toggle()
       tags[i] = nil
     end
     self._client:tags(tags)
-    return
+    return self
   end
 
   -- when the app is already being shown but a toggle happens from a different
@@ -123,7 +132,7 @@ function Leaf:toggle()
     awful.client.movetotag(current_tag, self._client)
     self._last_tag = current_tag
     capi.client.focus = self._client
-    return
+    return self
   end
 
   -- client is hidden, show it and set its dimensions and position
@@ -150,6 +159,7 @@ function Leaf:toggle()
   self._client.hidden = false
   self._client:raise()
   capi.client.focus = self._client
+  return self
 end
 
 return setmetatable(Leaf, {
