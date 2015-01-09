@@ -5,4 +5,5 @@
 
 return {
   diskusage = require("giblets.widgets.diskusage"),
+  progressbar = require("giblets.widgets.progressbar"),
 }

@@ -145,6 +145,12 @@ local diskusage_bottomright = giblets.widgets.diskusage(
   {window_border_width = 2}
 )
 
+local pbar = giblets.widgets.progressbar({
+  --border_color = "#ffffff",
+  --segment_size = 10,
+})
+pbar:set_value(0.5)
+
 mytaglist.buttons = awful.util.table.join(
                     awful.button({ }, 1, awful.tag.viewonly),
                     awful.button({ modkey }, 1, awful.client.movetotag),
@@ -224,6 +230,7 @@ for s = 1, screen.count() do
 
     -- Widgets that are aligned to the right
     local right_layout = wibox.layout.fixed.horizontal()
+    right_layout:add(pbar)
     right_layout:add(diskusage_topright)
     if s == 1 then right_layout:add(wibox.widget.systray()) end
     right_layout:add(mytextclock)
