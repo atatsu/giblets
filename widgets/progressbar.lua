@@ -10,10 +10,11 @@ local Progressbar = {}
 Progressbar.__index = Progressbar
 
 --- Progressbar options.
--- @int[opt=8] segment_size Dimensions of each segment. This value sets the height
---   and width of each segment. For instance, a value of `5` will result in each
---   segment being 5x5 pixels. The border, if set, is included in this. This has the
---   secondary effect of setting the height of the progressbar.
+-- @int[opt=8] segment_height Height of each segment. This is in effect the height
+--   of the progressbar.
+-- @int[opt=8] segment_width Width of each segment. While not controlling the entire
+--   progressbar width, it has a direct impact on it `(num_segments x segment_width
+--   + (spacing * num_segments)`).
 -- @int[opt=3] spacing The pixel gap between each segment comprising the progressbar.
 --   This, combined with the `num_segments` effects the progressbar length.
 -- @int[opt=9] num_segments Controls the number of segments that make up the progressbar. 
@@ -25,9 +26,10 @@ Progressbar.__index = Progressbar
 -- @string[opt="#8585ac"] border_color Border color (if `border_width` is non-zero) of the
 --   progressbar. Again, affects the border surrounding each segment.
 -- @int[opt=1] border_width Pixel width of the border surrounding each segment. Remember if
---   a `border_width` is used it is included in the `opts.segment_size`, it doesn't add to it.
---   So if `border_width` is `2`, and `segment_size` is `8`, each segment
---   effectively has a 4x4 area of fill space (height and width have a border on both sides).
+--   a `border_width` is used it is included in the `segment_height` and `segment_width`, 
+--   it doesn't add to it. So if `border_width` is `2`, and `segment_width` is `8` and 
+--   `segment_height` is `8`, each segment effectively has a 4x4 area of fill space 
+--   (height and width have a border on both sides).
 -- @table opts
 
 --- Create a progressbar widget.
@@ -47,7 +49,8 @@ function Progressbar.new(opts)
 
   local opts = opts or {}
   self.opts = {
-    segment_size = tonumber(opts.segment_size) or 8,
+    segment_height = tonumber(opts.segment_height) or 8,
+    segment_width = tonumber(opts.segment_width) or 8,
     spacing = tonumber(opts.spacing) or 3,
     num_segments = tonumber(opts.num_segments) or 9,
     foreground_color = opts.foreground_color or "#8585ac",
@@ -56,10 +59,10 @@ function Progressbar.new(opts)
     border_width = tonumber(opts.border_width) or 1,
   }
 
-  self.width = self.opts.segment_size * self.opts.num_segments + 
+  self.width = self.opts.segment_width * self.opts.num_segments + 
     self.opts.num_segments * self.opts.border_width +
     (self.opts.num_segments - 1) * self.opts.spacing
-  self.height = self.opts.segment_size
+  self.height = self.opts.segment_height
   self.value = 0
 
   -- return the actual widget, but use the Progressbar instance for unknown sets and gets
@@ -74,7 +77,7 @@ function Progressbar:draw(wibox, cr, width, height)
   local filled = math.ceil(self.opts.num_segments * self.value)
 
   for i = 1, self.opts.num_segments do
-    local width, height = self.opts.segment_size, self.opts.segment_size
+    local width, height = self.opts.segment_width, self.opts.segment_height
     -- draw border if border width is a non-zero value
     if self.opts.border_width then
       cr:set_line_width(border_width)

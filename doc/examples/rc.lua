@@ -146,8 +146,8 @@ local diskusage_bottomright = giblets.widgets.diskusage(
 )
 
 local pbar = giblets.widgets.progressbar({
-  --border_color = "#ffffff",
-  --segment_size = 10,
+  segment_width = 4,
+  segment_height = 8,
 })
 pbar:set_value(0.5)
 
