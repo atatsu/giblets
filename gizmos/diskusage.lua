@@ -1,5 +1,5 @@
 --- DiskUsage widget
--- @module giblets.widgets.diskusage
+-- @module giblets.gizmos.diskusage
 -- @author Nathan Lundquist (atatsu)
 -- @copyright 2015 Nathan Lundquist
 
@@ -120,8 +120,8 @@ local default_header_labels = {
 --   here override theme settings. For a break down of all available options as well as their
 --   theme counterparts see @{opts}.
 -- @treturn DiskUsage A new DiskUsage instance.
--- @usage local du = giblets.widgets.diskusage(beautiful.du_icon, {"/home", "/var"})
--- @usage local du = giblets.widgets.diskusage(
+-- @usage local du = giblets.gizmos.diskusage(beautiful.du_icon, {"/home", "/var"})
+-- @usage local du = giblets.gizmos.diskusage(
 --   beautiful.du_icon, 
 --   {{mount = "/home", label = "Home"}, {mount = "/var", label = "Var"}}
 -- )
@@ -408,7 +408,7 @@ end
 -- a DiskUsage instance.
 -- @tparam table keys A table with one or several button objects (from `awful.button`).
 -- @return The DiskUsage instance.
--- @usage local du = giblets.widgets.diskusage(beautiful.du_icon, {"/home"})
+-- @usage local du = giblets.gizmos.diskusage(beautiful.du_icon, {"/home"})
 -- du:buttons(
 --   awful.button({}, 1, function() self:toggle() end)
 -- )
