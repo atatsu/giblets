@@ -1,4 +1,5 @@
---- Progressbar widget
+--- Progressbar widget.
+-- TODO: write an actual description
 -- @module giblets.widgets.progressbar
 -- @author Nathan Lundquist (atatsu)
 -- @copyright 2015 Nathan Lundquist
@@ -32,8 +33,7 @@ Progressbar.__index = Progressbar
 --   (height and width have a border on both sides).
 -- @table opts
 
---- Create a progressbar widget.
--- TODO: description
+--- Create a new progressbar widget.
 --
 -- *Note*: When determining how many segments should be filled, will round up.
 -- @tparam[opt] table opts Options for controlling the dimensions and look of

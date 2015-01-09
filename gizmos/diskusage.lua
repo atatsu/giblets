@@ -1,4 +1,5 @@
---- DiskUsage widget
+--- DiskUsage gizmo.
+-- TODO: write an actual description
 -- @module giblets.gizmos.diskusage
 -- @author Nathan Lundquist (atatsu)
 -- @copyright 2015 Nathan Lundquist
@@ -21,7 +22,7 @@ cmd_template = "df -h %s | tail -n %s | awk '{print $6, $2, $3, $4, $5}'"
 local DiskUsage = {}
 DiskUsage.__index = DiskUsage
 
---- Default header labels
+--- Default header labels.
 -- @table default_header_labels
 local default_header_labels = {
   mount_point = "<b>Mount point</b>", -- &lt;b&gt;Mount point&lt;/b&gt;
@@ -109,8 +110,7 @@ local default_header_labels = {
 -- @table opts
   
 
---- Create a DiskUsage widget.
--- TODO: Write an actual description.
+--- Create a new DiskUsage gizmo.
 -- @string icon Icon to use.
 -- @tparam table mounts An array of mount points to monitor or an array of mount point/label pairs.
 --   If just an array of mount points the mount points themselves will be used as the label. 

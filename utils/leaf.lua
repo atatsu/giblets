@@ -1,4 +1,5 @@
---- Leaf
+--- Leaf utility.
+-- TODO: write an actual description
 -- @module giblets.utils.leaf
 -- @author Nathan Lundquist (atatsu)
 -- @copyright 2015 Nathan Lundquist
@@ -16,7 +17,7 @@ local capi = {
 local Leaf = {}
 Leaf.__index = Leaf
 
---- Leaf options
+--- Leaf options.
 -- @string[opt="bottom"] position Position of the leaf. Can be one of "top", "bottom", 
 --   "left", or "right".
 -- @number[opt=0.3] height Height of the Leaf application. Can be an absolute pixel 
@@ -27,7 +28,6 @@ Leaf.__index = Leaf
 -- @table opts
 
 --- Create a new Leaf.
--- TODO: write an actual description
 -- @string app Application to execute.
 -- @tparam[opt] table opts Options for controlling the look and behavior of the Leaf. For a 
 --   break down of all available options and their defaults see @{opts}.
