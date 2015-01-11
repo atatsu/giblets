@@ -146,8 +146,10 @@ local diskusage_bottomright = giblets.gizmos.diskusage(
 )
 
 local pbar = giblets.widgets.progressbar({
-  segment_width = 4,
-  segment_height = 8,
+  ticks_size = {
+    width = 8,
+    height = 4,
+  },
 })
 pbar:set_value(0.5)
 

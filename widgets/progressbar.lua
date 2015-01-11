@@ -95,6 +95,20 @@ function Progressbar.new(opts)
     self._num_segments = num_segments
   end
 
+  -- helper for getting the appropriate y coord based on the alignment value of
+  -- `opts.ticks_align`
+  self._y_align = {
+    center = function()
+      return self.height / 2 - self.opts.tick_height / 2
+    end,
+    top = function()
+      return 0
+    end,
+    bottom = function()
+      return self.height - self.opts.tick_height
+    end,
+  }
+
   -- return the actual widget, but use the Progressbar instance for unknown sets and gets
   return setmetatable(self.widget, {__index = self, __newindex = self})
 end
@@ -103,9 +117,19 @@ function Progressbar:draw(wibox, cr, width, height)
   local x, y = 0, 0
   local border_width = self.opts.border_width
 
+  -- first draw a filled space so that the specified size is taken up, fill will be transparent
+  cr:rectangle(x, y, self.width, self.height)
+  cr:set_source(gcolor("#00000000"))
+  cr:fill()
+
   -- need to determine how many segments should be filled
   local filled = math.ceil(self._num_segments * self.value)
 
+  -- now determine where the y coord needs to be based on whether the alignment is
+  -- center, top, or bottom
+  local align = self._y_align[self.opts.ticks_align]
+
+  y = align()
   for i = 1, self._num_segments do
     local width, height = self.opts.tick_width, self.opts.tick_height
     -- draw border if border width is a non-zero value
@@ -131,7 +155,7 @@ function Progressbar:draw(wibox, cr, width, height)
     cr:fill()
 
     x = x + width + self.opts.spacing + border_width
-    y = 0
+    y = align()
   end
 end
 
@@ -140,6 +164,8 @@ function Progressbar:fit(width, height)
 end
 
 --- Set the value of the progressbar.
+--
+-- **Emits:** `widget::updated`
 -- @number[opt=0] value The value between `0` and `1`.
 -- @return The progressbar instance.
 -- @usage pbar:set_value(0.4)
@@ -151,6 +177,8 @@ function Progressbar:set_value(value)
 end
 
 --- Sets the width of the progressbar.
+--
+-- **Emits:** `widget::updated`
 -- @int[opt=100] width Width of the progressbar.
 -- @return The progressbar instance.
 -- @usage pbar:set_width(100)
@@ -161,6 +189,8 @@ function Progressbar:set_width(width)
 end
 
 --- Sets the height of the progressbar.
+--
+-- **Emits:** `widget::updated`
 -- @int[opt=12] height Height of the progressbar.
 -- @return The progressbar instance.
 -- @usage pbar:set_height(12)
@@ -172,6 +202,8 @@ end
 
 --- Set the progressbar's border color.
 -- Remember this only has an effect if `border_width` is non-zero.
+--
+-- **Emits:** `widget::updated`
 -- @string[opt="#8585ac"] color Color of the border.
 -- @return The progressbar instance.
 -- @usage pbar:set_border_color("#8585ac")
@@ -183,6 +215,8 @@ end
 
 --- Set the foreground color of the progressbar.
 -- In other words, the filled color of segments.
+--
+-- **Emits:** `widget::updated`
 -- @string[opt="#8585ac"] color Foreground color.
 -- @return The progressbar instance.
 -- @usage pbar:set_color("#8585ac")
@@ -194,6 +228,8 @@ end
 
 --- Set the background color of the progressbar.
 -- Or in other words, the empty color of segments.
+--
+-- **Emits:** `widget::updated`
 -- @string[opt="#484874"] color Background color.
 -- @return The progressbar instance.
 -- @usage pbar:set_background_color("#484874")
@@ -204,6 +240,8 @@ function Progressbar:set_background_color(color)
 end
 
 --- Instructs the progressbar to be drawn vertically.
+--
+-- **Emits:** `widget::updated`
 -- @bool[opt=false] vertical Draw vertical or not.
 -- @return The progressbar instance.
 -- @usage pbar:set_vertical(true)
@@ -214,6 +252,8 @@ function Progressbar:set_vertical(vertical)
 end
 
 --- Sets the maximum value the progressbar can handle.
+--
+-- **Emits:** `widget::updated`
 -- @number[opt=1] value Max value of the progressbar.
 -- @return The progressbar instance.
 -- @usage pbar:set_max_value(2)
@@ -235,8 +275,11 @@ function Progressbar:set_ticks(ticks)
 end
 
 --- Set the spacing between each segment (tick).
+--
+-- **Emits:** `widget::updated`
 -- @int[opt=3] gap Pixel space between each segment (tick).
 -- @return The progressbar instance.
+-- @return widget::updated
 -- @usage pbar:set_ticks_gap(3)
 function Progressbar:set_ticks_gap(gap)
   self.opts.spacing = tonumber(gap) or 3
@@ -247,6 +290,8 @@ end
 --- Set the segment (tick) size of the progressbar.
 -- Can be a number representing both width and height or a table with separate width
 -- and height dimentions with the keys `width` and `height` (`{width = 10, height = 5}`).
+--
+-- **Emits:** `widget::updated`
 -- @tparam[opt=8] ?int|table size Size of each segment (tick).
 -- @return The progressbar instance.
 -- @usage pbar:set_ticks_size(8)
