@@ -6,3 +6,9 @@ format = "markdown"
 dir = "/tmp/giblets"
 sort = true
 file = "../"
+custom_tags = {
+  {
+    "signal",
+    title = "Signals",
+  },
+}
