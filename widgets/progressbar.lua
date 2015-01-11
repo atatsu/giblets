@@ -11,31 +11,39 @@ local Progressbar = {}
 Progressbar.__index = Progressbar
 
 --- Progressbar options.
--- @int[opt=8] segment_height Height of each segment. This is in effect the height
---   of the progressbar.
--- @int[opt=8] segment_width Width of each segment. While not controlling the entire
---   progressbar width, it has a direct impact on it `(num_segments x segment_width
---   + (spacing * num_segments)`).
--- @int[opt=3] spacing The pixel gap between each segment comprising the progressbar.
---   This, combined with the `num_segments` effects the progressbar length.
--- @int[opt=9] num_segments Controls the number of segments that make up the progressbar. 
---   This, combined with the `spacing` effects the progressbar length.
+-- @int[opt=100] width Width of the progressbar.
+-- @int[opt=12] height Height of the progressbar.
+-- @bool[opt=false] vertical Draw the progressbar vertically.
+-- @number[opt=1] max_value Maximum value the progressbar should support.
 -- @string[opt="#8585ac"] foreground_color Foreground color of the progressbar. Or in other 
---   words, the filled color of segments.
+--   words, the filled color of ticks.
 -- @string[opt="#484874"] background_color Background color of the progressbar. Or in other 
---   words, the empty color of segments.
+--   words, the empty color of ticks.
 -- @string[opt="#8585ac"] border_color Border color (if `border_width` is non-zero) of the
---   progressbar. Again, affects the border surrounding each segment.
--- @int[opt=1] border_width Pixel width of the border surrounding each segment. Remember if
---   a `border_width` is used it is included in the `segment_height` and `segment_width`, 
---   it doesn't add to it. So if `border_width` is `2`, and `segment_width` is `8` and 
---   `segment_height` is `8`, each segment effectively has a 4x4 area of fill space 
---   (height and width have a border on both sides).
+--   progressbar. Again, affects the border surrounding each tick.
+-- @int[opt=1] border_width Pixel width of the border surrounding each tick. 
+-- @int[opt=3] ticks_gap Spacing between each tick.
+-- @tparam[opt=8] ?int|table ticks_size Size of each tick. Can be a number 
+--   representing both width and height or a table with separate width and height 
+--   dimentions with the keys `width` and `height` (`{width = 10, height = 5}`).
+-- @string[opt="center"] ticks_align Set the alignment of the ticks. Can be one of
+--   `center`, `top`, `bottom`.
 -- @table opts
 
+
 --- Create a new progressbar widget.
+-- This progressbar is very similar to the one you get with `awful.widget.progressbar`, 
+-- except that it is always drawn with segments, or ticks. In addition, rather than being
+-- drawn with a solid border and ticks inside the border, each tick is drawn as
+-- though it is its own entity. So if a border is used, all four sides of each tick
+-- will have a border.
 --
--- *Note*: When determining how many segments should be filled, will round up.
+-- All the functions implemented by `awful.widget.progressbar` are also implemented
+-- here. So a `giblets.widgets.progressbar` can be a drop-in replacement for any
+-- `awful.widget.progressbar`'s that are in use. Keep in mind though that 
+-- `giblets.widgets.progressbar` does have additional functions so the reverse isn't
+-- true.
+--
 -- @tparam[opt] table opts Options for controlling the dimensions and look of
 --   the progressbar. For a break down of all available options and their default
 --   values see @{opts}.
@@ -47,23 +55,45 @@ function Progressbar.new(opts)
   local self = setmetatable({}, Progressbar)
   self.widget = base.make_widget()
 
-  local opts = opts or {}
-  self.opts = {
-    segment_height = tonumber(opts.segment_height) or 8,
-    segment_width = tonumber(opts.segment_width) or 8,
-    spacing = tonumber(opts.spacing) or 3,
-    num_segments = tonumber(opts.num_segments) or 9,
-    foreground_color = opts.foreground_color or "#8585ac",
-    background_color = opts.background_color or "#484874",
-    border_color = opts.border_color or "#8585ac",
-    border_width = tonumber(opts.border_width) or 1,
-  }
+  do
+    local opts = opts or {}
+    local ticks_size = {}
+    if type(opts.ticks_size) == "table" then
+      ticks_size.width = tonumber(opts.ticks_size.width) or 8
+      ticks_size.height = tonumber(opts.ticks_size.height) or 8
+    else
+      ticks_size.width = tonumber(opts.ticks_size) or 8
+      ticks_size.height = tonumber(opts.ticks_size) or 8
+    end
+    local align = opts.ticks_align
+    self.opts = {
+      vertical = opts.vertical or false,
+      max_value = tonumber(opts.max_value) or 1,
+      foreground_color = opts.foreground_color or "#8585ac",
+      background_color = opts.background_color or "#484874",
+      border_color = opts.border_color or "#8585ac",
+      border_width = tonumber(opts.border_width) or 1,
+      tick_height = ticks_size.height,
+      tick_width = ticks_size.width,
+      spacing = tonumber(opts.ticks_gap) or 3,
+      ticks_align = (align == "top" or align == "bottom" or align == "center") and align or "center",
+    }
+    self.width = tonumber(opts.width) or 100
+    self.height = tonumber(opts.height) or 12
+  end
 
-  self.width = self.opts.segment_width * self.opts.num_segments + 
-    self.opts.num_segments * self.opts.border_width +
-    (self.opts.num_segments - 1) * self.opts.spacing
-  self.height = self.opts.segment_height
   self.value = 0
+  
+  -- figure out how many ticks we'll need to draw
+  do
+    local x = 0
+    local num_segments = 0
+    while x <= self.width and self.width - x > self.opts.tick_width + self.opts.spacing do
+      x = x + self.opts.tick_width + self.opts.spacing
+      num_segments = num_segments + 1
+    end
+    self._num_segments = num_segments
+  end
 
   -- return the actual widget, but use the Progressbar instance for unknown sets and gets
   return setmetatable(self.widget, {__index = self, __newindex = self})
@@ -74,10 +104,10 @@ function Progressbar:draw(wibox, cr, width, height)
   local border_width = self.opts.border_width
 
   -- need to determine how many segments should be filled
-  local filled = math.ceil(self.opts.num_segments * self.value)
+  local filled = math.ceil(self._num_segments * self.value)
 
-  for i = 1, self.opts.num_segments do
-    local width, height = self.opts.segment_width, self.opts.segment_height
+  for i = 1, self._num_segments do
+    local width, height = self.opts.tick_width, self.opts.tick_height
     -- draw border if border width is a non-zero value
     if self.opts.border_width then
       cr:set_line_width(border_width)
@@ -120,14 +150,22 @@ function Progressbar:set_value(value)
   return self
 end
 
+--- Sets the width of the progressbar.
+-- @int[opt=100] width Width of the progressbar.
+-- @return The progressbar instance.
+-- @usage pbar:set_width(100)
 function Progressbar:set_width(width)
-  -- TODO
+  self.width = tonumber(width) or 100
   self:emit_signal("widget::updated")
   return self
 end
 
+--- Sets the height of the progressbar.
+-- @int[opt=12] height Height of the progressbar.
+-- @return The progressbar instance.
+-- @usage pbar:set_height(12)
 function Progressbar:set_height(height)
-  -- TODO
+  self.height = tonumber(height) or 12
   self:emit_signal("widget::updated")
   return self
 end
@@ -138,7 +176,7 @@ end
 -- @return The progressbar instance.
 -- @usage pbar:set_border_color("#8585ac")
 function Progressbar:set_border_color(color)
-  self.opts.border_color = _color
+  self.opts.border_color = color or self.opts.border_color
   self:emit_signal("widget::updated")
   return self
 end
@@ -160,37 +198,70 @@ end
 -- @return The progressbar instance.
 -- @usage pbar:set_background_color("#484874")
 function Progressbar:set_background_color(color)
-  self.opts.background_color = color
+  self.opts.background_color = color or self.opts.background_color
   self:emit_signal("widget::updated")
   return self
 end
 
+--- Instructs the progressbar to be drawn vertically.
+-- @bool[opt=false] vertical Draw vertical or not.
+-- @return The progressbar instance.
+-- @usage pbar:set_vertical(true)
 function Progressbar:set_vertical(vertical)
-  -- TODO
+  self.vertical = vertical or false
   self:emit_signal("widget::updated")
   return self
 end
 
-function Progressbar:set_max_value(max_value)
-  -- TODO
+--- Sets the maximum value the progressbar can handle.
+-- @number[opt=1] value Max value of the progressbar.
+-- @return The progressbar instance.
+-- @usage pbar:set_max_value(2)
+function Progressbar:set_max_value(value)
+  self.opts.max_value = tonumber(value) or 1
   self:emit_signal("widget::updated")
   return self
 end
 
+--- Set the progressbar to draw ticks (**non-functional**).
+-- This function doesn't do anything. It merely exists for compatibility with
+-- `awful.widget.progressbar`. A giblets' progressbar is always drawn with
+-- ticks, therefor they are not optional and cannot be turned off.
+-- @bool[opt=true] ticks This will **always** be `true`.
+-- @return The progressbar instance.
 function Progressbar:set_ticks(ticks)
-  -- TODO
   self:emit_signal("widget::updated")
   return self
 end
 
+--- Set the spacing between each segment (tick).
+-- @int[opt=3] gap Pixel space between each segment (tick).
+-- @return The progressbar instance.
+-- @usage pbar:set_ticks_gap(3)
 function Progressbar:set_ticks_gap(gap)
-  -- TODO
+  self.opts.spacing = tonumber(gap) or 3
   self:emit_signal("widget::updated")
   return self
 end
 
+--- Set the segment (tick) size of the progressbar.
+-- Can be a number representing both width and height or a table with separate width
+-- and height dimentions with the keys `width` and `height` (`{width = 10, height = 5}`).
+-- @tparam[opt=8] ?int|table size Size of each segment (tick).
+-- @return The progressbar instance.
+-- @usage pbar:set_ticks_size(8)
+-- @usage pbar:set_ticks_size({width = 10, height = 5})
 function Progressbar:set_ticks_size(size)
-  -- TODO
+  local _size = {}
+  if type(size) == "table" then
+    _size.width = tonumber(size.width) or 8
+    _size.height = tonumber(size.height) or 8
+  else
+    _size.width = tonumber(size) or 8
+    _size.height = tonumber(size) or 8
+  end
+  self.opts.tick_height = _size.height
+  self.opts.tick_width = _size.width
   self:emit_signal("widget::updated")
   return self
 end
