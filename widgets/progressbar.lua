@@ -5,7 +5,7 @@
 -- @copyright 2015 Nathan Lundquist
 
 local base = require("wibox.widget.base")
-local color = require("gears.color")
+local gcolor = require("gears.color")
 
 local Progressbar = {}
 Progressbar.__index = Progressbar
@@ -85,7 +85,7 @@ function Progressbar:draw(wibox, cr, width, height)
       -- half the border_width value, then pull in the outer edges by the border_width
       local tuck = border_width / 2
       cr:rectangle(x + tuck, y + tuck, width - border_width, height - border_width)
-      cr:set_source(color(self.opts.border_color))
+      cr:set_source(gcolor(self.opts.border_color))
       cr:stroke()
       x = x + border_width
       y = y + border_width
@@ -97,7 +97,7 @@ function Progressbar:draw(wibox, cr, width, height)
     local fill_color
     if i > filled then fill_color = self.opts.background_color
     else fill_color = self.opts.foreground_color end
-    cr:set_source(color(fill_color))
+    cr:set_source(gcolor(fill_color))
     cr:fill()
 
     x = x + width + self.opts.spacing + border_width
@@ -110,15 +110,90 @@ function Progressbar:fit(width, height)
 end
 
 --- Set the value of the progressbar.
--- @number value The value between `0` and `1`.
+-- @number[opt=0] value The value between `0` and `1`.
+-- @return The progressbar instance.
 -- @usage pbar:set_value(0.4)
 function Progressbar:set_value(value)
   local value = tonumber(value) or 0
   self.value = math.min(1, math.max(0, value))
+  self:emit_signal("widget::updated")
   return self
 end
 
--- TODO: implement other awful.widget.progressbar functions even if here they won't do anything
+function Progressbar:set_width(width)
+  -- TODO
+  self:emit_signal("widget::updated")
+  return self
+end
+
+function Progressbar:set_height(height)
+  -- TODO
+  self:emit_signal("widget::updated")
+  return self
+end
+
+--- Set the progressbar's border color.
+-- Remember this only has an effect if `border_width` is non-zero.
+-- @string[opt="#8585ac"] color Color of the border.
+-- @return The progressbar instance.
+-- @usage pbar:set_border_color("#8585ac")
+function Progressbar:set_border_color(color)
+  self.opts.border_color = _color
+  self:emit_signal("widget::updated")
+  return self
+end
+
+--- Set the foreground color of the progressbar.
+-- In other words, the filled color of segments.
+-- @string[opt="#8585ac"] color Foreground color.
+-- @return The progressbar instance.
+-- @usage pbar:set_color("#8585ac")
+function Progressbar:set_color(color)
+  self.opts.foreground_color = color or self.opts.foreground_color
+  self:emit_signal("widget::updated")
+  return self
+end
+
+--- Set the background color of the progressbar.
+-- Or in other words, the empty color of segments.
+-- @string[opt="#484874"] color Background color.
+-- @return The progressbar instance.
+-- @usage pbar:set_background_color("#484874")
+function Progressbar:set_background_color(color)
+  self.opts.background_color = color
+  self:emit_signal("widget::updated")
+  return self
+end
+
+function Progressbar:set_vertical(vertical)
+  -- TODO
+  self:emit_signal("widget::updated")
+  return self
+end
+
+function Progressbar:set_max_value(max_value)
+  -- TODO
+  self:emit_signal("widget::updated")
+  return self
+end
+
+function Progressbar:set_ticks(ticks)
+  -- TODO
+  self:emit_signal("widget::updated")
+  return self
+end
+
+function Progressbar:set_ticks_gap(gap)
+  -- TODO
+  self:emit_signal("widget::updated")
+  return self
+end
+
+function Progressbar:set_ticks_size(size)
+  -- TODO
+  self:emit_signal("widget::updated")
+  return self
+end
 
 return setmetatable(Progressbar, {
   __call = function(cls, ...)
