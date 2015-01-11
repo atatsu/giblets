@@ -7,5 +7,5 @@
 -- @copyright 2015 Nathan Lundquist
 
 return {
-  diskusage = require("giblets.widgets.diskusage"),
+  diskusage = require("giblets.gizmos.diskusage"),
 }
