@@ -17,30 +17,57 @@
 local awful = require("awful")
 local base = require("wibox.widget.base")
 local gcolor = require("gears.color")
+local beautiful = require("beautiful")
 
 local Progressbar = {}
 Progressbar.__index = Progressbar
 
 --- Progressbar options.
+-- If an option is available via your *beautiful* theme it is listed immediately 
+--   following the field description. Take note that the theme overrides default options,
+--   but any options supplied here will override those found in the theme.
 -- @int[opt=100] width Width of the progressbar.
+--
+-- `theme.giblets.widgets.progressbar.width`
 -- @int[opt=12] height Height of the progressbar.
+--
+--   `theme.giblets.widgets.progressbar.height`
 -- @bool[opt=false] vertical Draw the progressbar vertically.
 -- @number[opt=1] max_value Maximum value the progressbar should support.
 -- @string[opt="#8585ac"] foreground_color Foreground color of the progressbar. Or in other 
 --   words, the filled color of ticks.
+--
+--   `theme.giblets.widgets.progressbar.foreground_color`
 -- @string[opt="#484874"] background_color Background color of the progressbar. Or in other 
 --   words, the empty color of ticks.
+--
+--   `theme.giblets.widgets.progressbar.background_color`
 -- @string[opt="#8585ac"] border_color Border color (if `border_width` is non-zero) of the
 --   progressbar. Again, affects the border surrounding each tick.
+--
+--   `theme.giblets.widgets.progressbar.border_color`
 -- @int[opt=1] border_width Pixel width of the border surrounding each tick. 
+--
+--   `theme.giblets.widgets.progressbar.border_width`
 -- @int[opt=3] ticks_gap Spacing between each tick.
+--
+--   `theme.giblets.widgets.progressbar.ticks_gap`
 -- @tparam[opt=8] ?int|table ticks_size Size of each tick. Can be a number 
 --   representing both width and height or a table with separate width and height 
 --   dimentions with the keys `width` and `height` (`{width = 10, height = 5}`).
+--
+--   `theme.giblets.widgets.progressbar.ticks_size`
 -- @string[opt="center"] ticks_align Set the alignment of the ticks. Can be one of
 --   `center`, `top`, `bottom`.
+--
+--   `theme.giblets.widgets.progressbar.ticks_align`
 -- @bool[opt=true] tooltip If `true` a tooltip will be displayed when the
 --   progressbar is hovered over displaying the current % value.
+--
+--   `theme.giblets.widgets.progressbar.tooltip`
+-- @func[opt] tooltip_fmt_func An optional function that receives the current progressbar
+--   value and should return a string to be used as the tooltip text. The default format
+--   function is: `function(value) return value * 100 .. "%" end`.
 -- @table opts
 
 
@@ -55,48 +82,27 @@ Progressbar.__index = Progressbar
 function Progressbar.new(opts)
   local self = setmetatable({}, Progressbar)
   self.widget = base.make_widget()
+  self.opts = {}
 
-  do
-    local opts = opts or {}
-    local ticks_size = {}
-    if type(opts.ticks_size) == "table" then
-      ticks_size.width = tonumber(opts.ticks_size.width) or 8
-      ticks_size.height = tonumber(opts.ticks_size.height) or 8
-    else
-      ticks_size.width = tonumber(opts.ticks_size) or 8
-      ticks_size.height = tonumber(opts.ticks_size) or 8
-    end
-    local align = opts.ticks_align
-    self.opts = {
-      vertical = opts.vertical or false,
-      max_value = tonumber(opts.max_value) or 1,
-      foreground_color = opts.foreground_color or "#8585ac",
-      background_color = opts.background_color or "#484874",
-      border_color = opts.border_color or "#8585ac",
-      border_width = tonumber(opts.border_width) or 1,
-      tick_height = ticks_size.height,
-      tick_width = ticks_size.width,
-      spacing = tonumber(opts.ticks_gap) or 3,
-      ticks_align = (align == "top" or align == "bottom" or align == "center") and align or "center",
-      tooltip = opts.tooltip or true,
-    }
-    self.width = tonumber(opts.width) or 100
-    self.height = tonumber(opts.height) or 12
-  end
+  local opts = opts or {}
+  local theme = ((beautiful.giblets or {}).widgets or {}).progressbar or {}
 
-  self.value = 0
+  self:set_border_width(opts.border_width or theme.border_width)
+  self:set_border_color(opts.border_color or theme.border_color)
+  self:set_color(opts.foreground_color or theme.foreground_color)
+  self:set_background_color(opts.background_color or theme.background_color)
+  self:set_vertical(opts.vertical)
+  self:set_max_value(opts.max_value)
+  self:set_ticks_gap(opts.ticks_gap or theme.ticks_gap)
+  self:set_ticks_align(opts.ticks_align or theme.ticks_align)
+  self:set_ticks_size(opts.ticks_size or theme.ticks_size)
+  -- order matters, make sure all tick options are set before width since setting
+  -- a width calculates the number of ticks that need to be drawn
+  self:set_width(opts.width or theme.width)
+  self:set_height(opts.height or theme.height)
+  self:set_tooltip(opts.tooltip or theme.tooltip, opts.tooltip_fmt_func)
+  self:set_value(0)
   
-  -- figure out how many ticks we'll need to draw
-  do
-    local x = 0
-    local num_segments = 0
-    while x <= self.width and self.width - x > self.opts.tick_width + self.opts.spacing do
-      x = x + self.opts.tick_width + self.opts.spacing
-      num_segments = num_segments + 1
-    end
-    self._num_segments = num_segments
-  end
-
   -- helper for getting the appropriate y coord based on the alignment value of
   -- `opts.ticks_align`
   self._y_align = {
@@ -110,16 +116,6 @@ function Progressbar.new(opts)
       return self.height - self.opts.tick_height
     end,
   }
-
-  -- create a tooltip for the progressbar that displays the percentage
-  if self.opts.tooltip then
-    self.tooltip = awful.tooltip({
-      objects = {self.widget},
-      timer_function = function()
-        return self.value * 100 .. "%"
-      end
-    })
-  end
 
   -- return the actual widget, but use the Progressbar instance for unknown sets and gets
   return setmetatable(self.widget, {__index = self, __newindex = self})
@@ -178,13 +174,20 @@ end
 -- {{{ awful.widget.progressbar compatibility
 
 --- Set the value of the progressbar.
--- @number[opt=0] value The value between `0` and `1`.
+-- @number[opt=0] value The value between `0` and `max_value` as set with @{opts} or
+--   @{set_max_value}.
 -- @return The progressbar instance.
 -- @signal widget::updated
 -- @usage pbar:set_value(0.4)
 function Progressbar:set_value(value)
   local value = tonumber(value) or 0
   self.value = math.min(1, math.max(0, value))
+
+  if not self.emit_signal then
+    -- this was called from the constructor so our signal functions don't exist yet
+    return
+  end
+
   self:emit_signal("widget::updated")
   return self
 end
@@ -196,6 +199,23 @@ end
 -- @usage pbar:set_width(100)
 function Progressbar:set_width(width)
   self.width = tonumber(width) or 100
+
+  --figure out how many ticks we'll need to draw
+  do
+    local x = 0
+    local num_segments = 0
+    while x <= self.width and self.width - x > self.opts.tick_width + self.opts.spacing do
+      x = x + self.opts.tick_width + self.opts.spacing
+      num_segments = num_segments + 1
+    end
+    self._num_segments = num_segments
+  end
+
+  if not self.emit_signal then
+    -- this was called from the constructor so our signal functions don't exist yet
+    return
+  end
+
   self:emit_signal("widget::updated")
   return self
 end
@@ -207,6 +227,12 @@ end
 -- @usage pbar:set_height(12)
 function Progressbar:set_height(height)
   self.height = tonumber(height) or 12
+
+  if not self.emit_signal then
+    -- this was called from the constructor so our signal functions don't exist yet
+    return
+  end
+
   self:emit_signal("widget::updated")
   return self
 end
@@ -218,7 +244,13 @@ end
 -- @signal widget::updated
 -- @usage pbar:set_border_color("#8585ac")
 function Progressbar:set_border_color(color)
-  self.opts.border_color = color or self.opts.border_color
+  self.opts.border_color = color or "#8585ac"
+
+  if not self.emit_signal then
+    -- this was called from the constructor so our signal functions don't exist yet
+    return
+  end
+
   self:emit_signal("widget::updated")
   return self
 end
@@ -230,7 +262,13 @@ end
 -- @signal widget::updated
 -- @usage pbar:set_color("#8585ac")
 function Progressbar:set_color(color)
-  self.opts.foreground_color = color or self.opts.foreground_color
+  self.opts.foreground_color = color or "#8585ac"
+
+  if not self.emit_signal then
+    -- this was called from the constructor so our signal functions don't exist yet
+    return
+  end
+
   self:emit_signal("widget::updated")
   return self
 end
@@ -242,7 +280,13 @@ end
 -- @signal widget::updated
 -- @usage pbar:set_background_color("#484874")
 function Progressbar:set_background_color(color)
-  self.opts.background_color = color or self.opts.background_color
+  self.opts.background_color = color or "#484874"
+
+  if not self.emit_signal then
+    -- this was called from the constructor so our signal functions don't exist yet
+    return
+  end
+
   self:emit_signal("widget::updated")
   return self
 end
@@ -254,6 +298,12 @@ end
 -- @usage pbar:set_vertical(true)
 function Progressbar:set_vertical(vertical)
   self.vertical = vertical or false
+
+  if not self.emit_signal then
+    -- this was called from the constructor so our signal functions don't exist yet
+    return
+  end
+
   self:emit_signal("widget::updated")
   return self
 end
@@ -265,6 +315,12 @@ end
 -- @usage pbar:set_max_value(2)
 function Progressbar:set_max_value(value)
   self.opts.max_value = tonumber(value) or 1
+
+  if not self.emit_signal then
+    -- this was called from the constructor so our signal functions don't exist yet
+    return
+  end
+
   self:emit_signal("widget::updated")
   return self
 end
@@ -281,20 +337,26 @@ function Progressbar:set_ticks(ticks)
   return self
 end
 
---- Set the spacing between each tick.
+--- Set the pixel spacing between each tick.
 -- @int[opt=3] gap Pixel space between each tick.
 -- @return The progressbar instance.
 -- @signal widget::updated
 -- @usage pbar:set_ticks_gap(3)
 function Progressbar:set_ticks_gap(gap)
   self.opts.spacing = tonumber(gap) or 3
+
+  if not self.emit_signal then
+    -- this was called from the constructor so our signal functions don't exist yet
+    return
+  end
+
   self:emit_signal("widget::updated")
   return self
 end
 
 --- Set the tick size of the progressbar.
 -- Can be a number representing both width and height or a table with separate width
--- and height dimentions with the keys `width` and `height` (`{width = 10, height = 5}`).
+-- and height dimentions with the keys `width` and `height`.
 -- @tparam[opt=8] ?int|table size Size of each tick.
 -- @return The progressbar instance.
 -- @signal widget::updated
@@ -311,13 +373,19 @@ function Progressbar:set_ticks_size(size)
   end
   self.opts.tick_height = _size.height
   self.opts.tick_width = _size.width
+
+  if not self.emit_signal then
+    -- this was called from the constructor so our signal functions don't exist yet
+    return
+  end
+
   self:emit_signal("widget::updated")
   return self
 end
 
 -- }}}
 
---- Set the alignment of the ticks (**breaks compatibility with** `awful.widget.progressbar`).
+--- Set the alignment of the ticks (*not compatible with* `awful.widget.progressbar`).
 -- Can be one of `center`, `top`, or `bottom`.
 -- @string[opt="center"] align Alignment of the ticks.
 -- @return The progressbar instance.
@@ -326,35 +394,80 @@ end
 function Progressbar:set_ticks_align(align)
   self.opts.ticks_align = (align == "top" or align == "bottom" or align == "center") and 
     align or "center"
+
+  if not self.emit_signal then
+    -- this was called from the constructor so our signal functions don't exist yet
+    return
+  end
+
   self:emit_signal("widget::updated")
   return self
 end
 
---- Enable or disable the progressbar tooltip.
+--- Enable or disable the progressbar tooltip (*not compatible with* `awful.widget.progressbar`). 
 -- If `true` a tooltip will be displayed when the progressbar is hovered over
 -- displaying the current % value.
 -- @bool[opt=true] enabled Enable or disable the tooltip.
+-- @func[opt] fmt_func An optional function that receives the current progressbar
+--   value and should return a string to be used as the tooltip text. The default format 
+--   function is: `function(value) return value * 100 .. "%" end`.
 -- @return The progressbar instance.
 -- @signal widget::updated
--- @usage pbar:set_tooltip(false)
-function Progressbar:set_tooltip(enabled)
-  if not enabled then
+-- @usage pbar:set_tooltip(true, function(value)
+--   return "I'm " .. value * 100 .. "%!" end
+-- )
+function Progressbar:set_tooltip(enabled, fmt_func)
+  if not enabled and self.tooltip then
+    -- disable the current tooltip
     self.tooltip:remove_from_object(self.widget)
     self.tooltip = nil
+    self.opts.tooltip = false
   else
-    if not self.tooltip then
-      self.tooltip = awful.tooltip({
-        objects = {self.widget},
-        timer_function = function()
-          return self.value * 100 .. "%"
-        end
-      })
-    else
-      self.tooltip:add_to_object(self.widget)
+    -- setup a new tooltip
+    if type(fmt_func) == "function" then
+      self.opts.tooltip_fmt_func = fmt_func
     end
+
+    self.tooltip = awful.tooltip({
+      objects = {self.widget},
+      timer_function = function()
+        return self.opts.tooltip_fmt_func(self.value)
+      end
+    })
+    self.opts.tooltip = true
   end
+
+  if not self.emit_signal then
+    -- this was called from the constructor so our signal functions don't exist yet
+    return
+  end
+
   self:emit_signal("widget::updated")
   return self
+end
+
+--- Set the border width of the progressbar (*not compatible with* `awful.widget.progressbar`).
+-- @int[opt=1] width Pixel width of the border.
+-- @return The progressbar instance.
+-- @signal widget::updated
+-- @usage pbar:set_border_width(2)
+function Progressbar:set_border_width(width)
+  self.opts.border_width = tonumber(width) or 1
+
+  if not self.emit_signal then
+    -- this was called from the constructor so our signal functions don't exist yet
+    return
+  end
+
+  self:emit_signal("widget::updated")
+  return self
+end
+
+--- Get the current value of the progressbar (*not compatible with* `awful.widget.progressbar`).
+-- @treturn number The current progressbar value.
+-- @usage local val = pbar:get_value()
+function Progressbar:get_value()
+  return self.value
 end
 
 return setmetatable(Progressbar, {

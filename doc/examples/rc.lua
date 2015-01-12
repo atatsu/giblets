@@ -150,8 +150,21 @@ local pbar = giblets.widgets.progressbar({
     width = 8,
     height = 4,
   },
+  --ticks_align = "top",
+  width = 250,
 })
 pbar:set_value(0.5)
+pbar:set_tooltip(true, function(value) return "I'm " .. value * 100 .. "%!" end)
+pbar:buttons(awful.util.table.join(
+  awful.button({}, 4, function() 
+    local val = pbar:get_value()
+    pbar:set_value(val + 0.1)
+  end),
+  awful.button({}, 5, function()
+    local val = pbar:get_value()
+    pbar:set_value(val - 0.1)
+  end)
+))
 
 mytaglist.buttons = awful.util.table.join(
                     awful.button({ }, 1, awful.tag.viewonly),
