@@ -298,6 +298,7 @@ end
 -- @usage pbar:set_vertical(true)
 function Progressbar:set_vertical(vertical)
   self.vertical = vertical or false
+  -- TODO: do, you know, stuff
 
   if not self.emit_signal then
     -- this was called from the constructor so our signal functions don't exist yet

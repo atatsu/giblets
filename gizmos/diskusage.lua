@@ -133,9 +133,8 @@ function DiskUsage.new(icon, mounts, opts)
 
   -- collect all the options we'll be using
   do
-    local theme = beautiful.get()
-    local du_theme = theme.giblets and theme.giblets.diskusage or {}
-    local found, _, size = theme.font:find("^.+ ([0-9]*)$")
+    local du_theme = ((beautiful.giblets or {}).gizmos or {}).diskusage or {}
+    local found, _, size = (beautiful.font or ""):find("^.+ ([0-9]*)$")
     if found then
       font_size = tonumber(size)
     else
@@ -178,7 +177,7 @@ function DiskUsage.new(icon, mounts, opts)
   -- set some default key bindings
   -- left-click, show mount points and their usage stats
   local defaultkeys = awful.button({}, 1, function() self:toggle() end)
-  self:buttons(defaultkeys)
+  self.widget:buttons(defaultkeys)
 
   self._cmd_mounts = {}
   -- create all of our widgets, each collection is a table of parts corresponding
@@ -401,29 +400,12 @@ function DiskUsage.new(icon, mounts, opts)
   return setmetatable(widget, {__index = self, __newindex = self})
 end
 
---- Set the mouse and/or button bindings for the widget.
--- If this is not explicitly called a default is used, left-clicking the
--- widget shows/hides the disk usage stats. This is called by @{new} to set up 
--- the default bindings. If you wish to override simply use it after you have
--- a DiskUsage instance.
--- @tparam table keys A table with one or several button objects (from `awful.button`).
--- @return The DiskUsage instance.
--- @usage local du = giblets.gizmos.diskusage(beautiful.du_icon, {"/home"})
--- du:buttons(
---   awful.button({}, 1, function() self:toggle() end)
--- )
--- @see diskusage.lua
-function DiskUsage:buttons(keys)
-  self.widget:buttons(keys)
-  return self
-end
-
 --- Shows the widget if it is hidden, or hides it if it is shown.
 -- In addition to hiding/showing the widget this will update the
 -- current stats for each monitored mount point (by use of @{refresh}).
 -- With the default keybindings this is called when the widget icon is
 -- left-clicked.
--- @return The DiskUsage instance.
+-- @return The diskusage instance.
 function DiskUsage:toggle()
   -- simply hide the window if it is currently visible
   if self._window.visible then

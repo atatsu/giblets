@@ -8,4 +8,5 @@
 
 return {
   diskusage = require("giblets.gizmos.diskusage"),
+  diskusagenew = require("giblets.gizmos.diskusagenew"),
 }

@@ -145,6 +145,19 @@ local diskusage_bottomright = giblets.gizmos.diskusage(
   {window_border_width = 2}
 )
 
+local diskusagenew = giblets.gizmos.diskusagenew(
+  beautiful.widget_disk,
+  {{mount = "/home", label = "home"}}
+)
+diskusagenew:connect_signal("mouse::enter", function()
+  diskusagenew:show()
+end)
+diskusagenew:connect_signal("mouse::leave", function()
+  diskusagenew:hide()
+end)
+diskusagenew:set_width(350)
+diskusagenew:set_border_width(2)
+
 local pbar = giblets.widgets.progressbar({
   ticks_size = {
     width = 8,
@@ -245,6 +258,7 @@ for s = 1, screen.count() do
 
     -- Widgets that are aligned to the right
     local right_layout = wibox.layout.fixed.horizontal()
+    right_layout:add(diskusagenew)
     right_layout:add(pbar)
     right_layout:add(diskusage_topright)
     if s == 1 then right_layout:add(wibox.widget.systray()) end
