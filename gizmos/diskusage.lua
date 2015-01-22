@@ -2,7 +2,7 @@
 -- Displays an icon that when clicked shows a floating wibox populated with a 
 -- configurable set of mount points and their usage stats. The icon itself is
 -- a `wibox.widget` so all the standard functions are available.
--- @module giblets.gizmos.diskusagenew
+-- @module giblets.gizmos.diskusage
 -- @author Nathan Lundquist (atatsu)
 -- @copyright 2015 Nathan Lundquist
 
@@ -65,20 +65,23 @@ DiskUsage.__index = DiskUsage
 
 --- DiskUsage options.
 -- @int[opt=400] width Width of the diskusage window.
--- @tparam[opt=giblets.widgets.progressbar] progressbar The constructor for a progressbar widget
+-- @tparam[opt=giblets.widgets.progressbar] table progressbar The constructor for a progressbar widget
 --   supporting the functions provided by `awful.widget.progressbar`. This is used to represent
 --   the use % of the mount point.
 -- @int[opt=0] border_width Sets the border width of the diskusage window.
 -- @string[opt="#000000"] border_color Sets the color of the diskusage window border.
 -- @string[opt] background_color Sets the background color of the diskusage window.
 -- @string[opt] foreground_color Sets the foreground color of the diskusage window.
--- @string[opt="$1 -- $4 free of $2, $3 used"] stats_format Sets the format of the 
+-- @string[opt] stats_format Sets the format of the 
 --   stats text display. The available replacement tokens and their corresponding
 --   stat is as follows:
---     * `$1` - Mount point (or label if a label was specified
---     * `$2` - Total size of the mount point
---     * `$3` - Used amount of the mount point
---     * `$4` - Available space remaining on the mount point
+--
+--   * `$1` - Mount point (or label if a label was specified
+--   * `$2` - Total size of the mount point
+--   * `$3` - Used amount of the mount point
+--   * `$4` - Available space remaining on the mount point
+--
+--   (*default* "$1 -- $4 free of $2, $3 used")
 -- @table opts
 
 --- Create a new diskusage gizmo.
@@ -91,12 +94,12 @@ DiskUsage.__index = DiskUsage
 --   down of all available options and their default values see @{opts}. There are 
 --   corresponding methods for each option, if you'd rather use those.
 -- @treturn DiskUsage A new DiskUsage instance.
--- @raise 'mounts' argument must be a table
--- @raise Invalid 'mounts' argument supplied
--- @raise Not a progressbar constructor
+-- @raise * 'mounts' argument must be a table
+--   * Invalid 'mounts' argument supplied
+--   * Not a progressbar constructor
 -- @see diskusage.lua
 -- @usage local giblets = require("giblets")
---local du = giblets.gizmos.diskusage(
+-- local du = giblets.gizmos.diskusage(
 --  beautiful.du_icon, 
 --  {{mount = "/home", label = "home"}, {mount = "/var", label = "var"}}
 -- )
@@ -169,7 +172,7 @@ end
 
 --- Set the type of progressbar that gets used for representing the use % of the mount point.
 -- Remember this must be a progressbar constructor. Not an instantiated progressbar.
--- @tparam[opt=giblets.widgets.progressbar] progressbar The progressbar constructor supporting
+-- @tparam[opt=giblets.widgets.progressbar] table progressbar The progressbar constructor supporting
 --   all functions provided by `awful.widget.progressbar`.
 -- @return The diskusage instance.
 -- @raise Not a progressbar constructor
