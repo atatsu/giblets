@@ -357,12 +357,13 @@ end
 
 --- Set the tick size of the progressbar.
 -- Can be a number representing both width and height or a table with separate width
--- and height dimentions with the keys `width` and `height`.
+-- and height dimentions with the keys `width` and `height`. For best results use
+-- even numbers.
 -- @tparam[opt=8] ?int|table size Size of each tick.
 -- @return The progressbar instance.
 -- @signal widget::updated
 -- @usage pbar:set_ticks_size(8)
--- @usage pbar:set_ticks_size({width = 10, height = 5})
+-- @usage pbar:set_ticks_size({width = 8, height = 4})
 function Progressbar:set_ticks_size(size)
   local _size = {}
   if type(size) == "table" then
@@ -427,6 +428,10 @@ function Progressbar:set_tooltip(enabled, fmt_func)
     -- setup a new tooltip
     if type(fmt_func) == "function" then
       self.opts.tooltip_fmt_func = fmt_func
+    end
+
+    if not self.opts.tooltip_fmt_func then
+      self.opts.tooltip_fmt_func = function(value) return value * 100 .. "%" end
     end
 
     self.tooltip = awful.tooltip({

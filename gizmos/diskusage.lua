@@ -1,12 +1,15 @@
 --- DiskUsage gizmo.
--- TODO: write an actual description
--- @module giblets.gizmos.diskusage
+-- Displays an icon that when clicked shows a floating wibox populated with a 
+-- configurable set of mount points and their usage stats. The icon itself is
+-- a `wibox.widget` so all the standard functions are available.
+-- @module giblets.gizmos.diskusagenew
 -- @author Nathan Lundquist (atatsu)
 -- @copyright 2015 Nathan Lundquist
 
 local wibox = require("wibox")
 local awful = require("awful")
 local beautiful = require("beautiful")
+local widgets = require("giblets.widgets")
 
 local capi = {
   screen = screen,
@@ -17,460 +20,424 @@ local capi = {
 local pread = awful.util.pread
 
 -- command to get partition size, used, avail, and use%
-cmd_template = "df -h %s | tail -n %s | awk '{print $6, $2, $3, $4, $5}'"
+local cmd_template = "df -h %s | tail -n %s | awk '{print $6, $2, $3, $4, $5}'"
+
+-- regex for parsing the output returned from the `df` command
+local re_df = " ([0-9.]+%u*) ([0-9.]+%u*) ([0-9.]+%u*) ([0-9.]+)%%"
+
+local function create_widgets(du)
+  local main_layout = wibox.layout.fixed.vertical()
+  local window_margin = wibox.layout.margin()
+  window_margin:set_widget(main_layout)
+  -- TODO: make configurable
+  local margins = 4
+  window_margin:set_margins(margins)
+  du.window:set_widget(window_margin)
+
+  for _, v in ipairs(du.mounts) do
+    local widget_group = {}
+    local stats = wibox.widget.textbox()
+    stats:set_align("center")
+    local progressbar = du.opts.progressbar()
+    progressbar:set_width(du.opts.width - margins * 2)
+
+    local mountpoint_container = wibox.layout.fixed.vertical()
+    -- layout that will hold the text output from the `df` command
+    local row1 = wibox.layout.flex.horizontal()
+    row1:add(stats)
+    -- layout that will hold the progressbar
+    local row2 = wibox.layout.flex.horizontal()
+    row2:add(progressbar)
+
+    mountpoint_container:add(row1)
+    mountpoint_container:add(row2)
+
+    main_layout:add(mountpoint_container)
+
+    widget_group.stats = stats
+    widget_group.progressbar = progressbar
+    du.widgets[v.mount] = widget_group
+  end
+end
 
 local DiskUsage = {}
 DiskUsage.__index = DiskUsage
 
---- Default header labels.
--- @table default_header_labels
-local default_header_labels = {
-  mount_point = "<b>Mount point</b>", -- &lt;b&gt;Mount point&lt;/b&gt;
-  size = "<b>Size</b>", -- &lt;b&gt;Size&lt;/b&gt;
-  avail = "<b>Avail</b>", -- &lt;b&gt;Avail&lt;/b&gt;
-  used = "<b>Used</b>" -- &lt;b&gt;Used&lt;/b&gt;
-}
-
 --- DiskUsage options.
--- @bool[opt=true] enable_header Display column headers.
--- @tparam table header_labels A table of header labels used for columns if they're 
---   enabled. Pango markup is supported. See the @{default_header_labels} for structure
---   and defaults.
--- @int[opt=400] window_width `theme.giblets.diskusage.window_width`
---
---   Controls the width of the DiskUsage widget window.
--- @tparam[opt=10] ?int|table window_margins `theme.giblets.diskusage.window_margins`
---
---   Margins for the DiskUsage widget outer window.
---   Can be a single number representing all margins or a table specifying
---   each margin. If a table of individual margins, valid keys are:
---     * top
---     * bottom
---     * left
---     * right
---  For example: `{top = 10, right = 5, bottom = 10, left = 5}`
---
---  *Note*: If any keys are specified, those left unspecified are assumed
---  to have a value of `0`.
--- @int[opt=1] window_border_width `theme.giblets.diskusage.window_border_width`
---
---   Sets the width of the border surrounding the DiskUsage window.
--- @string[opt="#000000"] window_border_color `theme.giblets.diskusage.window_border_color`
---   Sets the color of the border surrounding the DiskUsage window.
--- @tparam[opt={bottom = 5}] ?int|table header_margins `theme.giblets.diskusage.header_margins`
---
---   Margins surrounding the headers row. Can be a single number representing
---   all margins or a table specifying each margin. If a table of individual
---   margins, valid keys are:
---     * top
---     * bottom
---     * left
---     * right
---   For example: `{top = 10, right = 5, bottom = 10, left = 5}`
---
---   *Note*: If any keys are specified, those left unspecified are assumed
---   to have a value of `0`.
--- @int[opt=12] progressbar_height `theme.giblets.diskusage.progressbar_height`
---
---   Controls the height of the progressbar that is used to represent the % used
---   of the mount point.
--- @tparam[opt={top = 3}] ?int|table progressbar_margins `theme.giblets.diskusage.progressbar_margins`
---
---   Sets the margins surrounding the progressbar. Can be a single number representing all
---   margins or a table specifying each margin. If a table of individual margins, valid
---   keys are:
---     * top
---     * bottom
---     * left
---     * right
---   For example: `{top = 10, right = 5, bottom = 10, left = 5}`
---
---   *Note*: If any keys are specified, those left unspecified are assumed to have
---   a value of `0`.
--- @string[opt="#d509b5"] progressbar_color `theme.giblets.diskusage.progressbar_color`
---
---   Sets the color of the progressbar.
--- @string[opt="#afd700"] progressbar_border_color `theme.giblets.diskusage.progressbar_border_color`
---
---   Sets the color of the progressbar border.
--- @tparam[opt={bottom = 7}] ?int|table mp_container_margins `theme.giblets.diskusage.mp_container_margins`
---
---   Sets the margins surrounding each mount point container (the container encompasses all
---   the sub-widgets specific to a mount point, so the mount label text, size text, used text,
---   avail text, and progressbar). Can be a single number representing all margins or a table
---   specifying each margin. If a table of individual margins, valid keys are:
---     * top
---     * bottom
---     * left
---     * right
---   For example: `{top = 10, right = 5, bottom = 10, left = 5}`
---
---   *Note*: If any keys are specified, those left unspecified are assumed to have
---   a value of `0`.
+-- @int[opt=400] width Width of the diskusage window.
+-- @tparam[opt=giblets.widgets.progressbar] progressbar The constructor for a progressbar widget
+--   supporting the functions provided by `awful.widget.progressbar`. This is used to represent
+--   the use % of the mount point.
+-- @int[opt=0] border_width Sets the border width of the diskusage window.
+-- @string[opt="#000000"] border_color Sets the color of the diskusage window border.
+-- @string[opt] background_color Sets the background color of the diskusage window.
+-- @string[opt] foreground_color Sets the foreground color of the diskusage window.
+-- @string[opt="$1 -- $4 free of $2, $3 used"] stats_format Sets the format of the 
+--   stats text display. The available replacement tokens and their corresponding
+--   stat is as follows:
+--     * `$1` - Mount point (or label if a label was specified
+--     * `$2` - Total size of the mount point
+--     * `$3` - Used amount of the mount point
+--     * `$4` - Available space remaining on the mount point
 -- @table opts
-  
 
---- Create a new DiskUsage gizmo.
--- @string icon Icon to use.
--- @tparam table mounts An array of mount points to monitor or an array of mount point/label pairs.
---   If just an array of mount points the mount points themselves will be used as the label. 
---   The order in which mount points are supplied is the order in which they're displayed.
--- @tparam[opt] table opts Options for controlling the look and feel of the DiskUsage widget. 
---   Configuration as well as styling options can be supplied here. Any styling options specified
---   here override theme settings. For a break down of all available options as well as their
---   theme counterparts see @{opts}.
+--- Create a new diskusage gizmo.
+-- @tparam ?string|cairoimage icon Either the path to an image file or a cairo image surface.
+-- @tparam table mounts A table of tables containing the keys `mount` and `label`, with
+--   `label` being optional. If no `label` is supplied the mount point itself will be
+--   used. For instance, 
+--   `{{mount = "/home/me", label = "home"}, {mount = "/var", label = "var"}}`.
+-- @tparam[opt] table opts Options for controlling the look of the diskusage gizmo. For a break 
+--   down of all available options and their default values see @{opts}. There are 
+--   corresponding methods for each option, if you'd rather use those.
 -- @treturn DiskUsage A new DiskUsage instance.
--- @usage local du = giblets.gizmos.diskusage(beautiful.du_icon, {"/home", "/var"})
--- @usage local du = giblets.gizmos.diskusage(
---   beautiful.du_icon, 
---   {{mount = "/home", label = "Home"}, {mount = "/var", label = "Var"}}
--- )
+-- @raise 'mounts' argument must be a table
+-- @raise Invalid 'mounts' argument supplied
+-- @raise Not a progressbar constructor
 -- @see diskusage.lua
+-- @usage local giblets = require("giblets")
+--local du = giblets.gizmos.diskusage(
+--  beautiful.du_icon, 
+--  {{mount = "/home", label = "home"}, {mount = "/var", label = "var"}}
+-- )
 function DiskUsage.new(icon, mounts, opts)
+  if type(mounts) ~= "table" then
+    error("'mounts' argument must be a table")
+  end
+  -- sanity check the mounts table
+  for _, v in ipairs(mounts) do
+    if not v.mount then  -- 'label' is optional
+      error("Invalid 'mounts' argument supplied")
+    end
+  end
+
   local self = setmetatable({}, DiskUsage)
   self.mounts = mounts
-  local font_size = 0
+  self.widget = wibox.widget.imagebox()
+  self.widget:set_image(icon)
 
-  -- collect all the options we'll be using
-  do
-    local du_theme = ((beautiful.giblets or {}).gizmos or {}).diskusage or {}
-    local found, _, size = (beautiful.font or ""):find("^.+ ([0-9]*)$")
-    if found then
-      font_size = tonumber(size)
-    else
-      -- TODO: find out the actual default font size
-      font_size = 14
-    end
+  -- get all the options set
+  opts = opts or {}
+  self.opts = {}
 
-    opts = opts or {}
-    local header_labels = opts.header_labels or {}
-    self.options = {
-      -- configuration options
-      enable_header = opts.enable_header or true,
-      header_labels = {
-        mount_point = header_labels.mount_point or default_header_labels.mount_point,
-        size = header_labels.size or default_header_labels.size,
-        avail = header_labels.avail or default_header_labels.avail,
-        used = header_labels.used or default_header_labels.used,
-      },
-      -- styling options
-      window_width = opts.window_width or du_theme.window_width or 400,
-      window_margins = opts.window_margins or du_theme.window_margins or 10,
-      window_border_width = opts.window_border_width or du_theme.window_border_width or 1,
-      window_border_color = opts.window_border_color or du_theme.window_border_color or "#000000",
-      header_margins = opts.header_margins or du_theme.header_margins or {bottom = 5},
-      progressbar_height = opts.progressbar_height or du_theme.progressbar_height or 12,
-      progressbar_margins = opts.progressbar_margins or du_theme.progressbar_margins or {top = 3},
-      progressbar_color = opts.progressbar_color or du_theme.progressbar_color or "#d509b5",
-      progressbar_border_color = opts.progressbar_border_color or 
-        du_theme.progressbar_border_color or "#afd700",
-      mp_container_margins = opts.mp_container_margins or 
-        du_theme.mp_container_margins or {bottom = 7},
-    }
+  self:set_progressbar(opts.progressbar)
+
+  -- now create the wibox window and populate it with widgets
+  self.window = wibox({
+    ontop = true,
+    height = 400,
+  })
+  self.opts.height = 400
+  self.window.visible = false
+  self:set_width(opts.width)
+  self:set_border_width(opts.border_width)
+  self:set_border_color(opts.border_color)
+  self:set_background_color(opts.background_color)
+  self:set_foreground_color(opts.foreground_color)
+  self:set_stats_format(opts.stats_format)
+
+  self._window_pos = nil
+
+  -- add signals to the widget
+  self.widget:add_signal("property::progressbar")
+  self.widget:add_signal("property::border_width")
+  self.widget:add_signal("property::border_color")
+  self.widget:add_signal("property::background_color")
+  self.widget:add_signal("property::foreground_color")
+  self.widget:add_signal("property::stats_format")
+  self.widget:add_signal("property::width")
+  self.widget:add_signal("property::visible")
+  
+  -- actual command to run when updating stats
+  local mount_points = {}
+  for _, v in ipairs(self.mounts) do
+    mount_points[#mount_points+1] = v.mount
   end
+  self._cmd = string.format(cmd_template, table.concat(mount_points, " "), #mount_points)
 
-  -- setup our actual widget
-  local widget = wibox.widget.imagebox()
-  widget:set_image(icon)
-  self.widget = widget
+  -- now get all the widgets created and added to the window
+  self.widgets = {}
+  create_widgets(self)
 
-  -- set some default key bindings
-  -- left-click, show mount points and their usage stats
+  -- `self` will now actually be the imagebox widget, with our original `self`
+  -- as the lookup
+  self = setmetatable(self.widget, {__index = self, __newindex = self})
   local defaultkeys = awful.button({}, 1, function() self:toggle() end)
   self.widget:buttons(defaultkeys)
-
-  self._cmd_mounts = {}
-  -- create all of our widgets, each collection is a table of parts corresponding
-  -- to each mount point and each of them to the main layout
-  self._widgets = {}
-  for i, mount_opt in ipairs(self.mounts) do
-    -- set some widgets up for our headers
-    if i == 1 and self.options.enable_header then
-      local labels = self.options.header_labels
-      local headers = {}
-
-      local mount_point = wibox.widget.textbox()
-      mount_point:set_markup(labels.mount_point)
-      headers.mount_point = mount_point
-
-      local size = wibox.widget.textbox()
-      size:set_markup(labels.size)
-      headers.size = size
-
-      local avail = wibox.widget.textbox()
-      avail:set_markup(labels.avail)
-      headers.avail = avail
-
-      local used = wibox.widget.textbox()
-      used:set_markup(labels.used)
-      headers.used = used
-
-      self._widgets.headers = headers
-    end
-
-    local mount_opt = self.mounts[i]
-    local mount, label
-
-    if type(mount_opt) == "table" then
-      mount = mount_opt.mount
-      label = mount_opt.label
-    else
-      mount = mount_opt
-      label = "<b>" .. mount_opt .. "</b>"
-    end
-    -- store just the mount points themselves in this table so they're
-    -- easier to work with when running the `df` command
-    self._cmd_mounts[#self._cmd_mounts+1] = mount
-
-    local w = {}
-    -- create a progressbar for a visual representation of disk usage
-    w.progressbar = awful.widget.progressbar({height = self.options.progressbar_height})
-    awful.widget.progressbar.set_border_color(w.progressbar, self.options.progressbar_border_color)
-    awful.widget.progressbar.set_color(w.progressbar, self.options.progressbar_color)
-    -- create a textbox to hold the mount's label
-    w.label = wibox.widget.textbox()
-    w.label:set_markup(label)
-    -- create a textbox to hold the mount's max capacity
-    w.max_space = wibox.widget.textbox()
-    -- create a textbox to hold the mount's used space
-    w.used_space = wibox.widget.textbox()
-    -- create a textbox to hold the mount's available space
-    w.avail_space = wibox.widget.textbox()
-    -- create a textbox to hold the mount's used percent
-    w.percent = wibox.widget.textbox()
-
-    self._widgets[i] = w
-  end
-
-  -- now that all the widgets have been created calculate the size the wibox needs
-  -- to be to house it all and then create it
-  do
-    -- find out how much space each collection of widgets for each mount point takes up
-    local height = 0
-
-    -- account for the top and bottom margins of widget window
-    if type(self.options.window_margins) == "table" then
-      height = height + (self.options.window_margins.top or 0)
-      height = height + (self.options.window_margins.bottom or 0)
-    else
-      height = height + self.options.window_margins * 2
-    end
-
-    -- account for header text if they are enabled
-    if self.options.enable_header then
-      height = height + font_size
-    end
-
-    -- account for header margins if they are enabled
-    if self.options.enable_header then
-      if type(self.options.header_margins) == "table" then
-        height = height + (self.options.header_margins.top or 0)
-        height = height + (self.options.header_margins.bottom or 0)
-      else
-        height = height + self.options.header_margins * 2
-      end
-    end
-
-    -- account for the progressbar height and margins for each mount point
-    height = height + self.options.progressbar_height * #self.mounts
-    if type(self.options.progressbar_margins) == "table" then
-      height = height + (self.options.progressbar_margins.top or 0) * #self.mounts
-      height = height + (self.options.progressbar_margins.bottom or 0) * #self.mounts
-    else
-      height = height + self.options.progressbar_margins * 2 * #self.mounts
-    end
-
-    -- account for the container margins for each mount point
-    if type(self.options.mp_container_margins) == "table" then
-      height = height + (self.options.mp_container_margins.top or 0) * #self.mounts
-      height = height + (self.options.mp_container_margins.bottom or 0) * #self.mounts
-    else
-      height = height + self.options.mp_container_margins * 2 * #self.mounts
-    end
-
-    -- account for the text row in each widget container for each mount point
-    -- FIXME: not sure yet if something is unaccounted for or what but without the 
-    -- magical +3 there isn't enough room to display everything
-    height = height + (font_size + 3) * #self.mounts
-
-    -- now create the widget window and set dimensions
-    self._window = wibox({ 
-      ontop = true, 
-      width = self.options.window_width, 
-      height = height,
-      border_width = self.options.window_border_width,
-      border_color = self.options.window_border_color,
-    })
-  end
-
-  -- create the layout the wibox will use as its widget
-  self._layout = wibox.layout.fixed.vertical()
-  local window_margin = wibox.layout.margin()
-  window_margin:set_widget(self._layout)
-  -- set widget window margins
-  if type(self.options.window_margins) == "table" then
-    local margins = self.options.window_margins
-    if margins.top then window_margin:set_top(margins.top) end
-    if margins.bottom then window_margin:set_bottom(margins.bottom) end
-    if margins.right then window_margin:set_right(margins.right) end
-    if margins.left then window_margin:set_left(margins.left) end
-  else
-    window_margin:set_margins(self.options.window_margins)
-  end
-  self._window:set_widget(window_margin)
-
-  for i, _ in ipairs(self.mounts) do
-    -- get our headers added to the widget window if they're enabled
-    if i == 1 and self.options.enable_header then
-      local headers_container = wibox.layout.fixed.vertical()      
-      local headers = wibox.layout.flex.horizontal()
-      headers:add(self._widgets.headers.mount_point)
-      headers:add(self._widgets.headers.avail)
-      headers:add(self._widgets.headers.size)
-      headers:add(self._widgets.headers.used)
-      headers_container:add(headers)
-
-      -- set header margins
-      local header_margin = wibox.layout.margin()
-      header_margin:set_widget(headers_container)
-      if type(self.options.header_margins) == "table" then
-        local margins = self.options.header_margins
-        if margins.top then header_margin:set_top(margins.top) end
-        if margins.bottom then header_margin:set_bottom(margins.bottom) end
-        if margins.left then header_margin:set_left(margins.left) end
-        if margins.right then header_margin:set_right(margins.right) end
-      else
-        header_margin:set_margins(self.options.header_margins)
-      end
-      self._layout:add(header_margin)
-    end
-
-    -- create a set of widgets specific to each mount point being monitored
-    -- and wrap them all in a layout
-    
-    -- the layout object that will hold all of our mount point's widgets
-    local mp_container = wibox.layout.fixed.vertical()
-
-    -- the layout object that will hold all the text widgets for our mount point
-    local row1 = wibox.layout.flex.horizontal()
-    row1:add(self._widgets[i].label)
-    row1:add(self._widgets[i].avail_space)
-    row1:add(self._widgets[i].max_space)
-    row1:add(self._widgets[i].used_space)
-
-    -- the layout object that will hold the progressbar widget for our mount point
-    local row2 = wibox.layout.flex.horizontal()
-    row2:add(self._widgets[i].progressbar)
-    mp_container:add(row1)
-
-    -- set margins for the progressbar row
-    local row2_margin = wibox.layout.margin()
-    row2_margin:set_widget(row2)
-    if type(self.options.progressbar_margins) == "table" then
-      local margins = self.options.progressbar_margins
-      if margins.top then row2_margin:set_top(margins.top) end
-      if margins.bottom then row2_margin:set_bottom(margins.bottom) end
-      if margins.left then row2_margins:set_left(margins.left) end
-      if margins.right then row2_margins:set_right(margins.right) end
-    else
-      row2_margin:set_margins(self.options.progressbar_margins)
-    end
-    mp_container:add(row2_margin)
-
-    -- set margins for the mount point's encompassing layout
-    local mp_container_margin = wibox.layout.margin()
-    mp_container_margin:set_widget(mp_container)
-    if type(self.options.mp_container_margins) == "table" then
-      local margins = self.options.mp_container_margins
-      if margins.top then mp_container_margin:set_top(margins.top) end
-      if margins.bottom then mp_container_margin:set_bottom(margins.bottom) end
-      if margins.left then mp_container_margin:set_left(margins.left) end
-      if margins.right then mp_container_margin:set_right(margins.right) end
-    else
-      mp_container_margin:set_margins(self.options.mp_container_margins)
-    end
-    self._layout:add(mp_container_margin)
-  end
-  
-  -- command to actually run when updating stats
-  self._cmd = string.format(cmd_template, table.concat(self._cmd_mounts, " "), #self._cmd_mounts)
-
-  -- return the actual widget (in this case the imagebox) but use the DiskUsage instance
-  -- for unknown sets and gets
-  return setmetatable(widget, {__index = self, __newindex = self})
+  return self
 end
 
---- Shows the widget if it is hidden, or hides it if it is shown.
--- In addition to hiding/showing the widget this will update the
--- current stats for each monitored mount point (by use of @{refresh}).
--- With the default keybindings this is called when the widget icon is
--- left-clicked.
+--- Set the type of progressbar that gets used for representing the use % of the mount point.
+-- Remember this must be a progressbar constructor. Not an instantiated progressbar.
+-- @tparam[opt=giblets.widgets.progressbar] progressbar The progressbar constructor supporting
+--   all functions provided by `awful.widget.progressbar`.
 -- @return The diskusage instance.
+-- @raise Not a progressbar constructor
+-- @signal property::progressbar
+-- @usage du:set_progressbar(awful.widget.progressbar)
+function DiskUsage:set_progressbar(progressbar)
+  -- sanity checking
+  if progressbar and type(progressbar) ~= "function" then
+    error("Not a progressbar constructor")
+  end
+
+  self.opts.progressbar = progressbar or widgets.progressbar
+
+  if not self.emit_signal then
+    -- this was called from the constructor so our signal functions don't exist yet
+    return
+  end
+
+  self:emit_signal("property::progressbar")
+  return self
+end
+
+--- Set the border width of the diskusage window.
+-- @int[opt=0] width Pixel width of the border.
+-- @return The diskusage instance.
+-- @signal property::border_width
+-- @usage du:set_border_width(2)
+function DiskUsage:set_border_width(width)
+  width = tonumber(width) or 0
+  self.opts.border_width = width
+  self.window.border_width = width
+
+  if not self.emit_signal then
+    -- this was called from the constructor so our signal functions don't exist yet
+    return
+  end
+
+  self:emit_signal("property::border_width")
+  return self
+end
+
+--- Set the border color of the diskusage window.
+-- @string[opt="#000000"] color Color of the border.
+-- @return The diskusage instance.
+-- @signal property::border_color
+-- @usage du:set_border_color("#ff0000")
+function DiskUsage:set_border_color(color)
+  color = color or "#000000"
+  self.opts.border_color = color
+  self.window.border_color = color
+
+  if not self.emit_signal then
+    -- this was called from the constructor so our signal functions don't exist yet
+    return
+  end
+
+  self:emit_signal("property::border_color")
+  return self
+end
+
+--- Set the background color of the diskusage window.
+-- Since the diskusage "window" is merely a wibox the background color will
+-- default to `bg_normal` if set in your theme file.
+-- @string color Background color of the diskusage window.
+-- @return The diskusage instance.
+-- @signal property::background_color
+-- @usage du:set_background_color("#222222")
+function DiskUsage:set_background_color(color)
+  color = color or beautiful.bg_normal
+  self.opts.background_color = color
+  self.window:set_bg(color)
+
+  if not self.emit_signal then
+    -- this was called from the constructor so our signal functions don't exist yet
+    return 
+  end
+
+  self:emit_signal("property::background_color")
+  return self
+end
+
+--- Set the foreground color of the diskusage window.
+-- Since the diskusage "window" is merely a wibox the foreground color will
+-- default to `fg_normal` if set in your theme file.
+-- @string color Foreground color of the diskusage window.
+-- @return The diskusage instance.
+-- @signal property::foreground_color
+-- @usage du:set_foreground_color("ffffff")
+function DiskUsage:set_foreground_color(color)
+  color = color or beautiful.fg_normal
+  self.opts.foreground_color = color
+  self.window:set_fg(color)
+
+  if not self.emit_signal then
+    -- this was called from the constructor so our signal functions don't exist yet
+    return
+  end
+
+  self:emit_signal("property::foreground_color")
+  return self
+end
+
+--- Set the width of the diskusage window.
+-- @int[opt=400] width Pixel width of the diskusage window.
+-- @return The diskusage instance.
+-- @signal property::width
+-- @usage du:set_width(600)
+function DiskUsage:set_width(width)
+  width = tonumber(width) or 400
+  self.opts.width = width
+  self.window.width = width
+
+  if not self.emit_signal then
+    -- this was called from the constructor so our signal functions don't exist yet
+    return
+  end
+
+  for _, v in ipairs(self.mounts) do
+    self.widgets[v.mount].progressbar:set_width(width)
+  end
+
+  self:emit_signal("property::width")
+  return self
+end
+
+--- Set the format of the stats text display. 
+-- The available replacement tokens and their corresponding stat is as follows:
+--   * `$1` - Mount point (or label if a label was specified
+--   * `$2` - Total size of the mount point
+--   * `$3` - Used amount of the mount point
+--   * `$4` - Available space remaining on the mount point
+-- @string[opt="$1 -- $4 free of $2, $3 used"] format Format string.
+-- @return The diskusage instance.
+-- @signal property::stats_format
+-- @usage du:set_stats_format("$1 - $3/$2 ($4)")
+function DiskUsage:set_stats_format(format)
+  format = format or "$1 -- $4 free of $2, $3 used"
+  self.opts.stats_format = format
+  
+  if not self.emit_signal then
+    -- this was called from the constructor so our signal functions don't exist yet
+    return
+  end
+
+  self:emit_signal("property::stats_format")
+  return self
+end
+
+local function calc_coords(width, height, border)
+  local mouse_coords = capi.mouse.coords()
+  local workarea = capi.screen[capi.mouse.screen].workarea
+  -- set the initial coords to that of the mouse cursor's
+  local x, y = mouse_coords.x, mouse_coords.y
+  local width_total = width + border * 2
+  local height_total = height + border * 2
+  -- ensure window doesn't bleed past the screen edges
+  if x < workarea.x then x = workarea.x end
+  if x + width_total > workarea.x + workarea.width then
+    x = workarea.x + workarea.width - width_total
+  end
+  if y < workarea.y then y = workarea.y end
+  if y + height_total > workarea.y + workarea.height then
+    y = workarea.y + workarea.height - height_total
+  end
+
+  return x, y
+end
+
+--- Show the diskusage window if it is hidden, or hide it if it is shown.
+-- @return The diskusage instance.
+-- @signal property::visible
+-- @usage du:toggle()
 function DiskUsage:toggle()
-  -- simply hide the window if it is currently visible
-  if self._window.visible then
-    self._window.visible = false
+  -- just hide the window if it is already visible
+  if self.window.visible then
+    return self:hide()
+  else
+    return self:show()
+  end
+end
+
+--- Show the diskusage window.
+-- @return The diskusage instance.
+-- @signal property::visible
+-- @usage du:show()
+function DiskUsage:show()
+  if self.window.visible then
     return self
   end
 
-  -- need to show window after updating all the mount stats
+  if not self._window_pos then
+    local x, y = calc_coords(self.opts.width, self.opts.height, self.opts.border_width)
+    self.window.x = x
+    self.window.y = y
+    self.window_pos = {x, y}
+  end
+
   self:refresh()
-  -- calculate the coords that our window (wibox) should be displayed at
-  local mouse_coords = mouse.coords()
-  local workarea = capi.screen[capi.mouse.screen].workarea
-  local w_width_total = self._window.width + self.options.window_border_width * 2
-  local w_height_total = self._window.height + self.options.window_border_width * 2
-  -- one monitor - { height = 876, width = 1440, x = 0, y = 12 }
-  -- two monitors - { height = 1038, width = 1680, x = 1680, y = 12 }
-
-  -- set the initial coords to that of the mouse cursor's
-  local x, y = mouse_coords.x, mouse_coords.y
-
-  -- now perform some checks to ensure the window isn't bleeding over the screen edge
-  -- start with x
-  if x < workarea.x then x = workarea.x end
-  if x + w_width_total > workarea.x + workarea.width then 
-    x = workarea.x + workarea.width - w_width_total
-  end
-
-  -- now handle the y coord
-  if y < workarea.y then y = workarea.y end
-  if y + w_height_total > workarea.y + workarea.height then
-    y = workarea.y + workarea.height - w_height_total
-  end
-
-  -- and finally set the widget window coords and make it visible
-  self._window.x = x
-  self._window.y = y
-  self._window.visible = not self._window.visible
+  self.window.visible = true
+  self:emit_signal("property::visible")
   return self
 end
 
---- Refreshes the stats of all mount points and updates their corresponding widgets.
--- Refresh all the mount point stats and update their corresponding widgets. This is
--- automatically called by @{toggle}.
--- @return The DiskUsage instance.
+--- Hide the diskusage window.
+-- @return The diskusage instance.
+-- @signal property::visible
+-- @usage du:hide()
+function DiskUsage:hide()
+  if self.window.visible then
+    self.window.visible = false
+    self:emit_signal("property::visible")
+  end
+  return self
+end
+
+--- Refreshes the mount point stats.
+-- @return The diskusage instance.
+-- @usage du:refresh()
 function DiskUsage:refresh()
+  local size, used, avail, use_percent
   local output = pread(self._cmd)
-  for i, v in ipairs(self._cmd_mounts) do
-    local found, _, size, used, avail, use_percent = output:find(
-      v .. " ([0-9.]+%u*) ([0-9.]+%u*) ([0-9.]+%u*) ([0-9.]+)%%"
-    )
+  for _, v in ipairs(self.mounts) do
+    local found, _, size, used, avail, use_percent = output:find(v.mount .. re_df)
     if not found then
-      -- mount point wasn't found in df listing
-      size = "err"
-      used = "err"
-      avail = "err"
-      use_percent = 0
+      -- invalid mount point or some such
+      size, used, avail, use_percent = "err", "err", "err", 0
     end
     use_percent = tonumber(use_percent)
 
-    self._widgets[i].max_space:set_text(size)
-    self._widgets[i].used_space:set_text(used)
-    self._widgets[i].avail_space:set_text(avail)
-    self._widgets[i].progressbar:set_value(use_percent / 100)
+    -- update the widgets
+    local stats = self.opts.stats_format:gsub(
+      "$1", v.label or v.mount
+    ):gsub(
+      "$2", size
+    ):gsub(
+      "$3", used
+    ):gsub(
+      "$4", avail
+    )
+    self.widgets[v.mount].stats:set_text(stats)
+    self.widgets[v.mount].progressbar:set_value(use_percent / 100)
   end
+
   return self
+end
+
+--- Allows you to tweak the properties of the diskusage progressbars.
+-- Invokes the provided callback for every configured mount point, passing the 
+-- progressbar and mount path, respectively.
+-- @func callback A callback function that the progressbar widget and mount path
+--   will be passed to. Callback signature: `function(progressbar, mount_path)`.
+-- @return The diskusage instance.
+-- @raise 'callback' must be a function
+-- @usage du:tune_progressbars(function(progressbar, mount_path)
+--   if mount_path == "/home" then
+--     progressbar:set_background_color("#ff0000")
+--   else
+--     progressbar:set_background_color("#000000")
+--   end
+-- end)
+function DiskUsage:tune_progressbars(callback)
+  if type(callback) ~= "function" then
+    error("'callback' must be a function")
+  end
+
+  for _, v in ipairs(self.mounts) do
+    callback(self.widgets[v.mount].progressbar, v.mount)
+  end
 end
 
 return setmetatable(DiskUsage, {

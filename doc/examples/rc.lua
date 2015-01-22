@@ -124,28 +124,28 @@ mytaglist = {}
 
 local diskusage_topright = giblets.gizmos.diskusage(
   beautiful.widget_disk,
-  {"/home", "/var", "/videos", "/games"},
-  {window_border_width = 2}
+  {{mount = "/home"}, {mount = "/var"}, {mount = "/videos"}, {mount = "/games"}},
+  {border_width = 2}
 )
 local diskusage_topleft = giblets.gizmos.diskusage(
   beautiful.widget_disk,
-  {{mount = "/home", label = "<b>Home</b>"}, {mount = "/var", label = "<b>Var</b>"}},
-  {window_border_width = 2}
+  {{mount = "/home", label = "Home"}, {mount = "/var", label = "Var"}},
+  {border_width = 2}
 )
 
 local diskusage_bottomleft = giblets.gizmos.diskusage(
   beautiful.widget_disk,
-  {{mount = "/home", label = "<b>Home</b>"}, {mount = "/var", label = "<b>Var</b>"}},
-  {window_border_width = 2}
+  {{mount = "/home", label = "Home"}, {mount = "/var", label = "Var"}},
+  {border_width = 2}
 )
 
 local diskusage_bottomright = giblets.gizmos.diskusage(
   beautiful.widget_disk,
-  {{mount = "/home", label = "<b>Home</b>"}, {mount = "/var", label = "<b>Var</b>"}},
-  {window_border_width = 2}
+  {{mount = "/home", label = "Home"}, {mount = "/var", label = "Var"}},
+  {border_width = 2}
 )
 
-local diskusagenew = giblets.gizmos.diskusagenew(
+local diskusagenew = giblets.gizmos.diskusage(
   beautiful.widget_disk,
   {{mount = "/home", label = "home"}}
 )
@@ -157,6 +157,10 @@ diskusagenew:connect_signal("mouse::leave", function()
 end)
 diskusagenew:set_width(350)
 diskusagenew:set_border_width(2)
+diskusagenew:tune_progressbars(function(progressbar, mount_path)
+  --progressbar:set_width(290)
+  progressbar:set_ticks_size({width = 8, height = 4})
+end)
 
 local pbar = giblets.widgets.progressbar({
   ticks_size = {
