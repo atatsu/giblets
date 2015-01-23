@@ -33,7 +33,7 @@ Leaf.__index = Leaf
 --   break down of all available options and their defaults see @{opts}.
 -- @treturn Leaf A new Leaf instance.
 -- @usage local termleaf = giblets.utils.leaf("urxvt")
--- termleaf:toggle()
+--termleaf:toggle()
 -- @see leaf.lua
 function Leaf.new(app, opts)
   local self = setmetatable({}, Leaf)

@@ -32,6 +32,7 @@ local function create_widgets(du)
   -- TODO: make configurable
   local margins = 4
   window_margin:set_margins(margins)
+  window_margin:set_top(8)
   du.window:set_widget(window_margin)
 
   for _, v in ipairs(du.mounts) do
@@ -42,6 +43,9 @@ local function create_widgets(du)
     progressbar:set_width(du.opts.width - margins * 2)
 
     local mountpoint_container = wibox.layout.fixed.vertical()
+    local mountpoint_margin = wibox.layout.margin()
+    mountpoint_margin:set_widget(mountpoint_container)
+    mountpoint_margin:set_bottom(6)
     -- layout that will hold the text output from the `df` command
     local row1 = wibox.layout.flex.horizontal()
     row1:add(stats)
@@ -52,7 +56,8 @@ local function create_widgets(du)
     mountpoint_container:add(row1)
     mountpoint_container:add(row2)
 
-    main_layout:add(mountpoint_container)
+    --main_layout:add(mountpoint_container)
+    main_layout:add(mountpoint_margin)
 
     widget_group.stats = stats
     widget_group.progressbar = progressbar
@@ -65,6 +70,7 @@ DiskUsage.__index = DiskUsage
 
 --- DiskUsage options.
 -- @int[opt=400] width Width of the diskusage window.
+-- @int[opt=400] height Height of the diskusage window.
 -- @tparam[opt=giblets.widgets.progressbar] table progressbar The constructor for a progressbar widget
 --   supporting the functions provided by `awful.widget.progressbar`. This is used to represent
 --   the use % of the mount point.
@@ -128,10 +134,10 @@ function DiskUsage.new(icon, mounts, opts)
   -- now create the wibox window and populate it with widgets
   self.window = wibox({
     ontop = true,
-    height = 400,
+    --height = 400,
   })
-  self.opts.height = 400
   self.window.visible = false
+  self:set_height(opts.height)
   self:set_width(opts.width)
   self:set_border_width(opts.border_width)
   self:set_border_color(opts.border_color)
@@ -149,6 +155,7 @@ function DiskUsage.new(icon, mounts, opts)
   self.widget:add_signal("property::foreground_color")
   self.widget:add_signal("property::stats_format")
   self.widget:add_signal("property::width")
+  self.widget:add_signal("property::height")
   self.widget:add_signal("property::visible")
   
   -- actual command to run when updating stats
@@ -298,13 +305,35 @@ function DiskUsage:set_width(width)
   return self
 end
 
+--- Set the height of the diskusage window.
+-- @int[opt=400] height Pixel height of the diskusage window.
+-- @return The diskusage instance.
+-- @signal property::height
+-- @usage du:set_height(350)
+function DiskUsage:set_height(height)
+  height = tonumber(height) or 400
+  self.opts.height = height
+  self.window.height = height
+
+  if not self.emit_signal then
+    -- this was called from the constructor so our signal functions don't exist yet
+    return
+  end
+
+  self:emit_signal("property::height")
+  return self
+end
+
 --- Set the format of the stats text display. 
 -- The available replacement tokens and their corresponding stat is as follows:
---   * `$1` - Mount point (or label if a label was specified
---   * `$2` - Total size of the mount point
---   * `$3` - Used amount of the mount point
---   * `$4` - Available space remaining on the mount point
--- @string[opt="$1 -- $4 free of $2, $3 used"] format Format string.
+--
+-- * `$1` - Mount point (or label if a label was specified
+-- * `$2` - Total size of the mount point
+-- * `$3` - Used amount of the mount point
+-- * `$4` - Available space remaining on the mount point
+--
+-- @string format Format string. 
+--   (*default* "$1 -- $4 free of $2, $3 used")
 -- @return The diskusage instance.
 -- @signal property::stats_format
 -- @usage du:set_stats_format("$1 - $3/$2 ($4)")
